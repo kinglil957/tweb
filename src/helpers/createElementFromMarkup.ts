@@ -1,5 +1,6 @@
 import {MOUNT_CLASS_TO} from '../config/debug';
 
+
 /**
  * @example
  * createElementFromMarkup(`
@@ -59,3 +60,4 @@ function spot(content: Node | string) {
 createElementFromMarkup.spot = spot;
 
 MOUNT_CLASS_TO['createElementFromMarkup'] = createElementFromMarkup;
+

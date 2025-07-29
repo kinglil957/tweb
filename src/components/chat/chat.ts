@@ -35,7 +35,7 @@ import AppSharedMediaTab from '../sidebarRight/tabs/sharedMedia';
 import noop from '../../helpers/noop';
 import middlewarePromise from '../../helpers/middlewarePromise';
 import indexOfAndSplice from '../../helpers/array/indexOfAndSplice';
-import {Message, WallPaper, Chat as MTChat, Reaction, AvailableReaction, ChatFull, MessageEntity, PaymentsPaymentForm} from '../../layer';
+import {Message, WallPaper, Chat as MTChat, Reaction, AvailableReaction, ChatFull, MessageEntity, PaymentsPaymentForm, InputPeer} from '../../layer';
 import animationIntersector, {AnimationItemGroup} from '../animationIntersector';
 import {getColorsFromWallPaper} from '../../helpers/color';
 import apiManagerProxy from '../../lib/mtproto/mtprotoworker';
@@ -67,6 +67,8 @@ import appDownloadManager from '../../lib/appManagers/appDownloadManager';
 import showUndoablePaidTooltip, {paidReactionLangKeys} from './undoablePaidTooltip';
 import namedPromises from '../../helpers/namedPromises';
 import {getCurrentNewMediaPopup} from '../popups/newMedia';
+import PriceChangedInterceptor from './priceChangedInterceptor';
+import {isMessageForVerificationBot, isVerificationBot} from './utils';
 
 export enum ChatType {
   Chat = 'chat',
@@ -93,6 +95,8 @@ export default class Chat extends EventListenerBase<{
   public selection: ChatSelection;
   public contextMenu: ChatContextMenu;
   public search: ChatSearch;
+
+  private priceChangedInterceptor: PriceChangedInterceptor;
 
   public wasAlreadyUsed: boolean;
   // public initPeerId = 0;
@@ -596,6 +600,12 @@ export default class Chat extends EventListenerBase<{
     this.contextMenu = new ChatContextMenu(this, this.managers);
     this.selection = new ChatSelection(this, this.bubbles, this.input, this.managers);
 
+    this.priceChangedInterceptor = new PriceChangedInterceptor({
+      chat: this,
+      listenerSetter: this.bubbles.listenerSetter,
+      managers: this.managers
+    });
+
     this.topbar.constructUtils();
     this.topbar.constructPeerHelpers();
 
@@ -604,6 +614,8 @@ export default class Chat extends EventListenerBase<{
 
     this.bubbles.constructPeerHelpers();
     this.input.constructPeerHelpers();
+
+    this.priceChangedInterceptor.init();
 
     if(!IS_TOUCH_SUPPORTED) {
       this.bubbles.setReactionsHoverListeners();
@@ -638,12 +650,11 @@ export default class Chat extends EventListenerBase<{
 
         if(peerId === this.peerId) {
           this.isAnonymousSending = isAnonymousSending;
-          this.starsAmount = starsAmount;
-          this.input.setStarsAmount(starsAmount);
-          getCurrentNewMediaPopup()?.setStarsAmount(starsAmount);
+          this.updateStarsAmount(starsAmount);
         }
       }
     });
+
 
     const freezeObservers = (freeze: boolean) => {
       const cb = () => {
@@ -807,6 +818,7 @@ export default class Chat extends EventListenerBase<{
     this.input?.cleanup(helperToo);
     this.topbar?.cleanup();
     this.selection?.cleanup();
+    this.priceChangedInterceptor?.cleanup();
 
     if(this.ignoreSearchCleaning) this.ignoreSearchCleaning = undefined;
     else this.searchSignal?.(undefined);
@@ -1143,6 +1155,11 @@ export default class Chat extends EventListenerBase<{
     });
   }
 
+  public async hasMessages() {
+    const {history} = await this.getHistoryStorage(true);
+    return !!history.length;
+  }
+
   public getDialogOrTopic() {
     return this.managers.dialogsStorage.getAnyDialog(this.peerId, (this.isForum || this.type === ChatType.Saved) && this.threadId);
   }
@@ -1170,6 +1187,7 @@ export default class Chat extends EventListenerBase<{
   }
 
   public canSend(action?: ChatRights) {
+    if(isVerificationBot(this.peerId)) return Promise.resolve(false);
     if(this.type === ChatType.Saved && this.threadId !== this.peerId) {
       return Promise.resolve(false);
     }
@@ -1184,7 +1202,7 @@ export default class Chat extends EventListenerBase<{
       this.getHistoryStorage(true),
       this.peerId.isUser() ? this.managers.appProfileManager.isCachedUserBlocked(this.peerId.toUserId()) : undefined
     ]).then(([isBot, dialog, historyStorage, isUserBlocked]) => {
-      if(!isBot) {
+      if(!isBot || isVerificationBot(this.peerId)) {
         return false;
       }
 
@@ -1242,6 +1260,7 @@ export default class Chat extends EventListenerBase<{
   }
 
   public isAvatarNeeded(message: Message.message | Message.messageService) {
+    if(isMessageForVerificationBot(message)) return true;
     return this.isLikeGroup && !this.isOutMessage(message);
   }
 
@@ -1400,5 +1419,11 @@ export default class Chat extends EventListenerBase<{
         removedResults: []
       }]);
     }
+  }
+
+  public updateStarsAmount(starsAmount: number) {
+    this.starsAmount = starsAmount;
+    this.input.setStarsAmount(starsAmount);
+    getCurrentNewMediaPopup()?.setStarsAmount(starsAmount);
   }
 }

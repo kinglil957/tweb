@@ -19,6 +19,30 @@ Open http://localhost:8080/ in your browser.
 
 Run `node build` to build the minimized production version of the app. Copy `public` folder contents to your web server.
 
+### Running in docker
+
+#### Developing: 
+* Install dependencies `docker-compose up tweb.dependencies`.
+* Run develop container `docker-compose up tweb.develop `.
+* Open http://localhost:8080/ in your browser. 
+
+#### Production:
+* Run `docker-compose up tweb.production -d` nginx image and container to serve the build
+* Open http://localhost:80/ in your browser.
+
+
+I also created an image https://hub.docker.com/r/elgammalx/tweb/tags  based on Nginx ready to be deployed.
+
+You can use `docker build -f ./.docker/Dockerfile_production -t {dockerhub-username}/{imageName}:{latest} .` to build your production ready image.
+
+My build use in `docker-compose.yaml` file
+```yaml
+services:
+  tweb.production:
+    image: elgammalx/tweb
+    ports:
+      - 80:80
+```
 
 ### Dependencies
 * [BigInteger.js](https://github.com/peterolson/BigInteger.js) ([Unlicense](https://github.com/peterolson/BigInteger.js/blob/master/LICENSE))
@@ -34,6 +58,7 @@ Run `node build` to build the minimized production version of the app. Copy `pub
 * [TinyLD](https://github.com/komodojp/tinyld) ([MIT License](https://github.com/komodojp/tinyld/blob/develop/license))
 * [libwebp.js](https://libwebpjs.appspot.com/)
 * fastBlur
+* [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) ([MIT License](https://github.com/Vanilagy/mp4-muxer/blob/main/LICENSE))
 
 ### Debugging
 You are welcome in helping to minimize the impact of bugs. There are classes, binded to global context. Look through the code for certain one and just get it by its name in developer tools.
@@ -47,6 +72,11 @@ Source maps are included in production build for your convenience.
 
 Should be applied like that: http://localhost:8080/?test=1
 
+#### Taking local storage snapshots
+You can also take and load snapshots of the local storage and indexed DB using the `./snapshot-server` [mini-app](/snapshot-server/README.md). Check the `README.md` under this folder for more details.
+
+#### Preview all icons
+You can see all the available svg icons by calling the `showIconLibrary()` global function in the browser's console.
 
 ### Troubleshooting & Suggesting
 

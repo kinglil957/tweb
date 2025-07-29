@@ -4,8 +4,8 @@
  * https://github.com/morethanwords/tweb/blob/master/LICENSE
  */
 
-import type {AppMessagesManager, MyInputMessagesFilter, MyMessage} from '../lib/appManagers/appMessagesManager';
-import appDialogsManager, {DIALOG_LIST_ELEMENT_TAG, Some4, SortedDialogList} from '../lib/appManagers/appDialogsManager';
+import type {AppMessagesManager, MyInputMessagesFilter, MyMessage, RequestHistoryOptions} from '../lib/appManagers/appMessagesManager';
+import appDialogsManager, {DIALOG_LIST_ELEMENT_TAG, DialogDom, Some4} from '../lib/appManagers/appDialogsManager';
 import {logger} from '../lib/logger';
 import rootScope from '../lib/rootScope';
 import {SearchGroup, SearchGroupType} from './appSearch';
@@ -18,7 +18,7 @@ import useHeavyAnimationCheck, {getHeavyAnimationPromise} from '../hooks/useHeav
 import I18n, {LangPackKey, i18n, join} from '../lib/langPack';
 import findUpClassName from '../helpers/dom/findUpClassName';
 import {getMiddleware, Middleware, MiddlewareHelper} from '../helpers/middleware';
-import {ChannelParticipant, Chat, ChatFull, ChatParticipant, Document, Message, MessageMedia, MessagesChats, Peer, Photo, StoryItem, Update, User, WebPage} from '../layer';
+import {ChannelParticipant, Chat, ChatFull, ChatParticipant, Document, Message, MessageMedia, MessagesChats, Peer, Photo, StoryItem, Update, User, UserFull, WebPage} from '../layer';
 import SortedUserList from './sortedUserList';
 import findUpTag from '../helpers/dom/findUpTag';
 import appSidebarRight from './sidebarRight';
@@ -74,7 +74,7 @@ import wrapVideo from './wrappers/video';
 import noop from '../helpers/noop';
 import wrapMediaSpoiler, {onMediaSpoilerClick} from './wrappers/mediaSpoiler';
 import filterAsync from '../helpers/array/filterAsync';
-import ChatContextMenu from './chat/contextMenu';
+import ChatContextMenu, {getSponsoredMessageButtons} from './chat/contextMenu';
 import PopupElement from './popups';
 import getParticipantRank from '../lib/appManagers/utils/chats/getParticipantRank';
 import {NULL_PEER_ID} from '../lib/mtproto/mtproto_config';
@@ -93,6 +93,14 @@ import setBlankToAnchor from '../lib/richTextProcessor/setBlankToAnchor';
 import cancelClickOrNextIfNotClick from '../helpers/dom/cancelClickOrNextIfNotClick';
 import createElementFromMarkup from '../helpers/createElementFromMarkup';
 import numberThousandSplitter from '../helpers/number/numberThousandSplitter';
+import {StarGiftsProfileTab} from './sidebarRight/tabs/stargifts';
+import {getFirstChild, resolveFirst} from '@solid-primitives/refs';
+import SortedDialogList from './sortedDialogList';
+import Icon from './icon';
+import PopupReportAd from './popups/reportAd';
+import createContextMenu from '../helpers/dom/createContextMenu';
+import ButtonMenuToggle from './buttonMenuToggle';
+import EmptySearchPlaceholder from './emptySearchPlaceholder';
 
 // const testScroll = false;
 
@@ -108,11 +116,11 @@ export type SearchSuperContext = {
   nextRate?: number,
   minDate?: number,
   maxDate?: number
-};
+} & Pick<RequestHistoryOptions, 'chatType'>;
 
 export type SearchSuperMediaType = 'stories' | 'members' | 'media' |
   'files' | 'links' | 'music' | 'chats' | 'voice' | 'groups' | 'similar' |
-  'savedDialogs' | 'saved' | 'channels' | 'apps';
+  'savedDialogs' | 'saved' | 'channels' | 'apps' | 'gifts';
 export type SearchSuperMediaTab = {
   inputFilter?: SearchSuperType,
   name: LangPackKey,
@@ -806,6 +814,7 @@ export default class AppSearchSuper {
 
     const loadPromises: Promise<any>[] = [];
     const dialogElement = appDialogsManager.addDialogNew({
+      dontSetActive: true,
       peerId,
       container: searchGroup?.list || false,
       avatarSize: 'bigger',
@@ -1136,8 +1145,11 @@ export default class AppSearchSuper {
       elemsToAppend.push(...awaited);
     }
 
-    if(searchGroup && searchGroup.list.childElementCount) {
+    const showSearchGroupAnyway = mediaTab.type === 'chats' && searchGroup.createPlaceholder;
+    if(searchGroup && (searchGroup.list.childElementCount || showSearchGroupAnyway)) {
       searchGroup.setActive();
+
+      if(!searchGroup.list?.childElementCount && searchGroup.createPlaceholder) searchGroup.addPlaceholder(searchGroup.createPlaceholder());
     }
 
     if(this.loadMutex) {
@@ -1153,6 +1165,7 @@ export default class AppSearchSuper {
     }
 
     const length = elemsToAppend.length;
+
     if(length) {
       const method = append ? 'append' : 'prepend';
       const groupByMonth = this.groupByMonth && !isSaved;
@@ -1185,7 +1198,7 @@ export default class AppSearchSuper {
 
           appDialogsManager.setListClickListener({
             list: chatlist,
-            onFound: () => {
+            onFound: (el) => {
               if(this.selection.isSelecting) {
                 return false;
               }
@@ -1236,6 +1249,38 @@ export default class AppSearchSuper {
 
     const query = this.searchContext.query;
     if(query) {
+      const addDialogSubtitle = async(dom: DialogDom, peerId: PeerId) => {
+        const peer = await this.managers.appPeersManager.getPeer(peerId);
+        if(peerId === rootScope.myId) {
+          dom.lastMessageSpan.append(i18n('Presence.YourChat'));
+        } else {
+          let username = await this.managers.appPeersManager.getPeerUsername(peerId);
+          if(!username) {
+            const user = await this.managers.appUsersManager.getUser(peerId);
+            if(user?.phone) {
+              username = '+' + formatPhoneNumber(user.phone).formatted;
+            }
+          } else {
+            username = '@' + username;
+          }
+
+          // if(query) {
+          //   const regExp = new RegExp(`(${escapeRegExp(query)}|${escapeRegExp(cleanSearchText(query))})`, 'gi');
+          //   dom.titleSpan.innerHTML = dom.titleSpan.innerHTML.replace(regExp, '<i>$1</i>');
+          // }
+
+          const toJoin: (Node | string)[] = [
+            username
+          ];
+
+          if(/* showMembersCount &&  */((peer as Chat.channel).participants_count || (peer as any).participants)) {
+            toJoin.push(await getChatMembersString(peerId.toChatId()));
+          }
+
+          dom.lastMessageSpan.append(...join(toJoin.filter(Boolean), false));
+        }
+      }
+
       const setResults = (results: PeerId[], group: SearchGroup, showMembersCount = false) => {
         results.map((peerId) => {
           if(renderedPeerIds.has(peerId)) {
@@ -1256,37 +1301,7 @@ export default class AppSearchSuper {
           });
 
           return {dom, peerId};
-        }).filter(Boolean).forEach(async({dom, peerId}) => {
-          const peer = await this.managers.appPeersManager.getPeer(peerId);
-          if(peerId === rootScope.myId) {
-            dom.lastMessageSpan.append(i18n('Presence.YourChat'));
-          } else {
-            let username = await this.managers.appPeersManager.getPeerUsername(peerId);
-            if(!username) {
-              const user = await this.managers.appUsersManager.getUser(peerId);
-              if(user?.phone) {
-                username = '+' + formatPhoneNumber(user.phone).formatted;
-              }
-            } else {
-              username = '@' + username;
-            }
-
-            // if(query) {
-            //   const regExp = new RegExp(`(${escapeRegExp(query)}|${escapeRegExp(cleanSearchText(query))})`, 'gi');
-            //   dom.titleSpan.innerHTML = dom.titleSpan.innerHTML.replace(regExp, '<i>$1</i>');
-            // }
-
-            const toJoin: (Node | string)[] = [
-              username
-            ];
-
-            if(/* showMembersCount &&  */((peer as Chat.channel).participants_count || (peer as any).participants)) {
-              toJoin.push(await getChatMembersString(peerId.toChatId()));
-            }
-
-            dom.lastMessageSpan.append(...join(toJoin.filter(Boolean), false));
-          }
-        });
+        }).filter(Boolean).forEach(async({dom, peerId}) => addDialogSubtitle(dom, peerId));
 
         group.toggle();
       };
@@ -1307,6 +1322,56 @@ export default class AppSearchSuper {
         .then((contacts) => {
           if(contacts) {
             setResults(contacts, this.searchGroups.contacts, true);
+          }
+        }),
+
+        this.managers.appChatsManager.getSponsoredPeers(query)
+        .then(onLoad)
+        .then((peers) => {
+          if(!peers?.length) return;
+
+          for(const peer of peers.reverse()) {
+            const {dom} = appDialogsManager.addDialogNew({
+              peerId: peer.peer,
+              container: this.searchGroups.globalContacts.list,
+              append: false,
+              avatarSize: 'abitbigger',
+              autonomous: this.searchGroups.globalContacts.autonomous,
+              wrapOptions: {
+                middleware
+              }
+            });
+
+            dom.containerEl.dataset.sponsored = 'true';
+
+            const chip = ButtonMenuToggle({
+              listenerSetter: this.listenerSetter,
+              appendTo: document.body,
+              buttons: getSponsoredMessageButtons({
+                message: peer,
+                handleReportAd: () => {
+                  PopupReportAd.createAdReport(peer);
+                }
+              }),
+              onOpen: (e, element) => {
+                // position menu
+                const rect = chip.getBoundingClientRect();
+                const bodyRect = document.body.getBoundingClientRect();
+                element.style.right = `${bodyRect.width - (rect.left + rect.width)}px`;
+                element.style.top = `${rect.top + rect.height + 8}px`;
+              },
+              direction: 'bottom-left'
+            });
+            chip.classList.add('sponsored-peer-chip');
+
+            chip.replaceChildren(
+              i18n('SponsoredMessageAd'),
+              Icon('more')
+            )
+
+            dom.lastTimeSpan.appendChild(chip)
+
+            addDialogSubtitle(dom, peer.peer);
           }
         }),
 
@@ -1747,21 +1812,26 @@ export default class AppSearchSuper {
       return this._loadSavedDialogs(side);
     }
 
-    const list = appDialogsManager.createChatList();
+    const xd = new Some4();
+    xd.scrollable = this.scrollable;
+    xd.sortedList = new SortedDialogList({
+      appDialogsManager,
+      managers: this.managers,
+      log: this.log,
+      requestItemForIdx: xd.requestItemForIdx,
+      onListShrinked: xd.onListShrinked,
+      itemSize: 72,
+      scrollable: this.scrollable,
+      indexKey: 'index_0',
+      virtualFilterId: rootScope.myId
+    });
+
+    const list = xd.sortedList.list;
+
     appDialogsManager.setListClickListener({
       list,
       withContext: true,
       openInner: this.openSavedDialogsInner
-    });
-
-    const xd = new Some4();
-    xd.scrollable = this.scrollable;
-    xd.sortedList = new SortedDialogList({
-      managers: this.managers,
-      log: this.log,
-      list,
-      indexKey: 'index_0',
-      virtualFilterId: rootScope.myId
     });
 
     const getCount = async() => {
@@ -1780,7 +1850,7 @@ export default class AppSearchSuper {
     mediaTab.contentTab.append(list);
     this.afterPerforming(1, mediaTab.contentTab);
 
-    this._loadSavedDialogs = xd.onChatsScroll.bind(xd);
+    this._loadSavedDialogs = () => Promise.resolve(xd.onChatsScroll());
     middleware.onClean(() => {
       xd.destroy();
       this._loadSavedDialogs = undefined;
@@ -1963,6 +2033,39 @@ export default class AppSearchSuper {
     this.loaded[mediaTab.type] = true;
   }
 
+  private _loadedGifts: true
+  private async loadGifts({mediaTab}: SearchSuperLoadTypeOptions) {
+    if(!this._loadedGifts) {
+      const middleware = this.middleware.get();
+      createRoot((dispose) => {
+        middleware.onClean(() => dispose());
+
+        const scrollTarget = this.scrollable.container;
+
+        const {render: giftsList, loadNext} = StarGiftsProfileTab({
+          peerId: this.searchContext.peerId,
+          scrollParent: scrollTarget,
+          onCountChange: (count) => {
+            this.setCounter('gifts', count);
+          }
+        });
+
+        scrollTarget.addEventListener('scroll', () => {
+          const offset = 400;
+          if(this.mediaTab !== mediaTab) return; // There is one scrollable for all tabs
+          if(scrollTarget.scrollTop + scrollTarget.clientHeight >= scrollTarget.scrollHeight - offset) {
+            loadNext();
+          }
+        });
+
+        mediaTab.contentTab.append(getFirstChild(giftsList, v => v instanceof Element) as Element);
+      });
+      this._loadedGifts = true;
+    }
+
+    return Promise.resolve();
+  }
+
   private loadType(options: SearchSuperLoadTypeOptions) {
     const {
       mediaTab,
@@ -1991,6 +2094,8 @@ export default class AppSearchSuper {
       promise = this.loadChannels(options);
     } else if(type === 'apps') {
       promise = this.loadApps(options);
+    } else if(type === 'gifts') {
+      promise = this.loadGifts(options);
     }
 
     if(promise) {
@@ -2158,7 +2263,8 @@ export default class AppSearchSuper {
       canViewMembers,
       canViewGroups,
       canViewStories,
-      canViewSimilar
+      canViewSimilar,
+      giftsCount
     ] = await Promise.all([
       this.managers.appMessagesManager.getSearchCounters(peerId, filters, undefined, threadId),
       this.canViewSavedDialogs(),
@@ -2166,7 +2272,8 @@ export default class AppSearchSuper {
       this.canViewMembers(),
       this.canViewGroups(),
       this.canViewStories(),
-      this.canViewSimilar()
+      this.canViewSimilar(),
+      this.getGiftsCount()
     ]);
 
     if(!middleware()) {
@@ -2207,6 +2314,7 @@ export default class AppSearchSuper {
     const storiesTab = this.mediaTabsMap.get('stories');
     const groupsTab = this.mediaTabsMap.get('groups');
     const similarTab = this.mediaTabsMap.get('similar');
+    const giftsTab = this.mediaTabsMap.get('gifts');
 
     const a: [SearchSuperMediaTab, boolean][] = [
       [savedDialogsTab, canViewSavedDialogs],
@@ -2214,7 +2322,8 @@ export default class AppSearchSuper {
       [storiesTab, canViewStories],
       [membersTab, canViewMembers],
       [groupsTab, canViewGroups],
-      [similarTab, canViewSimilar]
+      [similarTab, canViewSimilar],
+      [giftsTab, giftsCount !== 0]
     ];
 
     a.forEach(([tab, value]) => {
@@ -2228,6 +2337,8 @@ export default class AppSearchSuper {
         ++count;
       }
     });
+
+    this.setCounter('gifts', giftsCount);
 
     if(canViewStories) {
       firstMediaTab = storiesTab;
@@ -2441,6 +2552,12 @@ export default class AppSearchSuper {
     }
   }
 
+  public async getGiftsCount() {
+    const {peerId} = this.searchContext
+    const full = await this.managers.appProfileManager.getProfileByPeerId(peerId);
+    return (full as UserFull | ChatFull.channelFull).stargifts_count ?? 0;
+  }
+
   public cleanup() {
     this.loadPromises = {};
     this.loaded = {};
@@ -2550,7 +2667,7 @@ export default class AppSearchSuper {
     return context;
   }
 
-  public setQuery({peerId, query, threadId, historyStorage, folderId, minDate, maxDate}: {
+  public setQuery({peerId, query, threadId, historyStorage, folderId, minDate, maxDate, chatType}: {
     peerId: PeerId,
     query?: string,
     threadId?: number,
@@ -2558,7 +2675,7 @@ export default class AppSearchSuper {
     folderId?: number,
     minDate?: number,
     maxDate?: number
-  }) {
+  } & Pick<RequestHistoryOptions, 'chatType'>) {
     this.searchContext = {
       peerId,
       query: query || '',
@@ -2566,7 +2683,8 @@ export default class AppSearchSuper {
       threadId,
       folderId,
       minDate,
-      maxDate
+      maxDate,
+      chatType
     };
 
     this.historyStorage = historyStorage ?? {};

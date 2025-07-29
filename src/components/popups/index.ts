@@ -26,6 +26,7 @@ import Icon from '../icon';
 import toggleDisability from '../../helpers/dom/toggleDisability';
 import {JSX} from 'solid-js';
 import {render} from 'solid-js/web';
+import MarkupTooltip from '../chat/markupTooltip';
 
 export type PopupButton = {
   text?: HTMLElement | DocumentFragment | Text,
@@ -109,6 +110,10 @@ export default class PopupElement<T extends EventListenerListeners = {}> extends
   protected buttons: Array<PopupButton>;
 
   protected middlewareHelper: MiddlewareHelper;
+  /**
+   * Gets destroyed after timeout
+   */
+  protected lateMiddlewareHelper: MiddlewareHelper;
   protected destroyed: boolean;
   protected shown: boolean;
 
@@ -140,6 +145,7 @@ export default class PopupElement<T extends EventListenerListeners = {}> extends
 
     this.isConfirmationNeededOnClose = options.isConfirmationNeededOnClose;
     this.middlewareHelper = getMiddleware();
+    this.lateMiddlewareHelper = getMiddleware();
     this.listenerSetter = new ListenerSetter();
     this.managers = PopupElement.MANAGERS;
 
@@ -321,7 +327,7 @@ export default class PopupElement<T extends EventListenerListeners = {}> extends
   }
 
   public show() {
-    if(this.shown) {
+    if(this.shown || this.destroyed) {
       return;
     }
 
@@ -382,7 +388,12 @@ export default class PopupElement<T extends EventListenerListeners = {}> extends
   }
 
   public hide() {
-    if(this.destroyed || !this.navigationItem) {
+    if(this.destroyed) {
+      return;
+    }
+
+    if(!this.navigationItem) {
+      this.destroy();
       return;
     }
 
@@ -409,6 +420,7 @@ export default class PopupElement<T extends EventListenerListeners = {}> extends
     this.element.classList.remove('active');
     this.listenerSetter.removeAll();
     this.middlewareHelper.destroy();
+    MarkupTooltip.getInstance().hide();
 
     if(!this.withoutOverlay) {
       overlayCounter.isOverlayActive = false;
@@ -427,6 +439,7 @@ export default class PopupElement<T extends EventListenerListeners = {}> extends
       this.dispatchEvent<PopupListeners>('closeAfterTimeout');
       this.cleanup();
       this.scrollable?.destroy();
+      this.lateMiddlewareHelper.destroy();
 
       if(!this.withoutOverlay) {
         animationIntersector.checkAnimations2(false);
@@ -438,6 +451,11 @@ export default class PopupElement<T extends EventListenerListeners = {}> extends
     const div = document.createElement('div');
     (this.scrollable || this.body).prepend(div);
     const dispose = render(callback, div);
+    this.addEventListener('closeAfterTimeout', dispose as any);
+  }
+
+  protected appendSolidBody(callback: () => JSX.Element) {
+    const dispose = render(callback, this.body);
     this.addEventListener('closeAfterTimeout', dispose as any);
   }
 

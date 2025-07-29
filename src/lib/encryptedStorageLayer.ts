@@ -19,6 +19,7 @@ export interface StorageLayer
   get: <T>(entryNames: string[]) => Promise<T[]>;
   getAllEntries: () => Promise<IDBStorage.Entries>;
   getAll: <T>() => Promise<T[]>;
+  getAllKeys: () => Promise<IDBValidKey[]>;
   delete: (entryName: string | string[]) => Promise<void>;
   clear: () => Promise<void>;
 };
@@ -31,7 +32,7 @@ export default class EncryptedStorageLayer<T extends Database<any>> implements S
   // private static STORAGE_THROTTLE_TIME_MS = 250;
   /**
    * Having a delay here can break the app after logout, due to the fact that some updates might be queued in here before the
-   * storages were disabled, and the after timeout it will save the data anyway (that might have been cleared for logout)
+   * storages were disabled, and after the timeout it will save the data anyway (that might have been cleared for logout)
    */
   private static STORAGE_THROTTLE_TIME_MS = 0;
 
@@ -203,6 +204,12 @@ export default class EncryptedStorageLayer<T extends Database<any>> implements S
     await this.waitToLoad();
 
     return Object.values(this.data);
+  }
+
+  public async getAllKeys(): Promise<IDBValidKey[]> {
+    await this.waitToLoad();
+
+    return Object.keys(this.data);
   }
 
   public async delete(entryName: string | string[]): Promise<void> {

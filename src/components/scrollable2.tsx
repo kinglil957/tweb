@@ -28,7 +28,8 @@ if(USE_OWN_SCROLL) {
 
 export default function Scrollable(props: {
   children: JSX.Element,
-  ref?: Ref<HTMLDivElement>
+  ref?: Ref<HTMLDivElement>,
+  thumbRef?: (el: HTMLDivElement) => void,
   class?: string,
   axis?: 'x' | 'y',
   withBorders?: 'both' | 'top' | 'bottom' | 'manual',
@@ -64,6 +65,8 @@ export default function Scrollable(props: {
   const [isScrolledToStart, setIsScrolledToStart] = createSignal(true);
   const [isScrolledToEnd, setIsScrolledToEnd] = createSignal(true);
 
+  let onScrollMeasure = 0;
+
   const removeHeavyAnimationListener = useHeavyAnimationCheck(() => {
     isHeavyAnimationInProgress = true;
 
@@ -82,7 +85,6 @@ export default function Scrollable(props: {
 
   onCleanup(removeHeavyAnimationListener);
 
-  let onScrollMeasure = 0;
   const onScroll = () => {
     // if(this.debug) {
     // this.log('onScroll call', this.onScrollMeasure);
@@ -256,7 +258,10 @@ export default function Scrollable(props: {
         <div class="scrollable-thumb-container">
           <div
             class="scrollable-thumb"
-            ref={thumbRef}
+            ref={(el) => {
+              thumbRef = el;
+              props.thumbRef?.(el);
+            }}
             onMouseDown={onThumbMouseDown}
           ></div>
         </div>

@@ -81,6 +81,9 @@ import canMessageHaveFactCheck from './utils/messages/canMessageHaveFactCheck';
 import commonStateStorage from '../commonStateStorage';
 import PaidMessagesQueue from './utils/messages/paidMessagesQueue';
 import type {ConfirmedPaymentResult} from '../../components/chat/paidMessagesInterceptor';
+import RepayRequestHandler, {RepayRequest} from '../mtproto/repayRequestHandler';
+import canVideoBeAnimated from './utils/docs/canVideoBeAnimated';
+import getPhotoInput from './utils/photos/getPhotoInput';
 
 // console.trace('include');
 // TODO: если удалить диалог находясь в папке, то он не удалится из папки и будет виден в настройках
@@ -107,6 +110,8 @@ export type SendFileDetails = {
   height: number,
   objectURL: string,
   thumb: {
+    isCover?: boolean;
+
     blob: Blob,
     url: string,
     size: MediaSize
@@ -259,6 +264,7 @@ export type RequestHistoryOptions = {
   isPublicHashtag?: boolean,
   isCacheableSearch?: boolean,
   hashtagType?: 'this' | 'my' | 'public',
+  chatType?: 'all' | 'users' | 'groups' | 'channels',
   recursion?: boolean,                  // ! FOR INNER USE ONLY
   historyType?: HistoryType,            // ! FOR INNER USE ONLY
   searchType?: 'cached' | 'uncached'    // ! FOR INNER USE ONLY
@@ -270,6 +276,17 @@ type GetUnreadMentionsOptions = {
   peerId: PeerId,
   threadId?: number,
   isReaction?: boolean
+};
+
+type UploadThumbAndCoverArgs = {
+  peer: InputPeer;
+  blob: Blob;
+  isCover: boolean;
+};
+
+type UploadVideoCoverArgs = {
+  peer: InputPeer;
+  file: InputFile;
 };
 
 type MessageContext = {searchStorages?: Set<HistoryStorage>};
@@ -375,8 +392,14 @@ export class AppMessagesManager extends AppManager {
   private waitingTranscriptions: Map<string, CancellablePromise<MessagesTranscribedAudio>>;
   private paidMessagesQueue = new PaidMessagesQueue;
 
+  private repayRequestHandler: RepayRequestHandler;
+
   protected after() {
     this.clear(true);
+
+    this.repayRequestHandler = new RepayRequestHandler({
+      rootScope: this.rootScope
+    });
 
     this.apiUpdatesManager.addMultipleEventsListeners({
       updateMessageID: this.onUpdateMessageId,
@@ -777,8 +800,8 @@ export class AppMessagesManager extends AppManager {
 
     const webPageSend = this.generateOutgoingWebPage(message, options);
 
-    const toggleError = (error?: ApiError) => {
-      this.onMessagesSendError([message], error);
+    const toggleError = (error?: ApiError, repayRequest?: RepayRequest) => {
+      this.onMessagesSendError([message], error, repayRequest);
       this.rootScope.dispatchEvent('messages_pending');
     };
 
@@ -891,7 +914,18 @@ export class AppMessagesManager extends AppManager {
 
         message.promise.resolve();
       }, (error: ApiError) => {
-        toggleError(error);
+        const repayRequest = this.repayRequestHandler.tryRegisterRequest({
+          error,
+          messageCount: 1,
+          repayCallback: (override) => {
+            this.cancelPendingMessage(message.random_id);
+            this.sendText({...options, ...override})
+          },
+          paidStars,
+          wereStarsReserved: options.confirmedPaymentResult?.canUndo
+        });
+
+        toggleError(error, repayRequest);
         message.promise.reject(error);
         throw error;
       }).finally(() => {
@@ -1064,9 +1098,7 @@ export class AppMessagesManager extends AppManager {
       attributes.push(videoAttribute);
 
       // * must follow after video attribute
-      if(options.noSound &&
-        file.size > (10 * 1024) &&
-        file.size < (10 * 1024 * 1024)) {
+      if(canVideoBeAnimated(options.noSound, file.size)) {
         attributes.push({
           _: 'documentAttributeAnimated'
         });
@@ -1213,13 +1245,15 @@ export class AppMessagesManager extends AppManager {
       }
     }
 
-    const toggleError = (error?: ApiError) => {
-      this.onMessagesSendError([message], error);
+    const toggleError = (error?: ApiError, repayRequest?: RepayRequest) => {
+      this.onMessagesSendError([message], error, repayRequest);
       this.rootScope.dispatchEvent('messages_pending');
     };
 
-    let uploaded = false,
-      uploadPromise: ReturnType<ApiFileManager['upload']> = null;
+    let
+      uploaded = false,
+      uploadPromise: ReturnType<ApiFileManager['upload']> = null
+    ;
 
     const upload = () => {
       if(isDocument) {
@@ -1263,9 +1297,13 @@ export class AppMessagesManager extends AppManager {
             sentDeferred.notifyAll({done: 0, total: file.size});
           }
 
-          let thumbUploadPromise: typeof uploadPromise;
+          let thumbUploadPromise: ReturnType<typeof this.uploadThumbAndCover>;
           if(attachType === 'video' && options.objectURL && options.thumb?.blob) {
-            thumbUploadPromise = this.apiFileManager.upload({file: options.thumb.blob});
+            thumbUploadPromise = this.uploadThumbAndCover({
+              blob: options.thumb.blob,
+              isCover: !!options.thumb.isCover,
+              peer: this.appPeersManager.getInputPeerById(peerId)
+            });
           }
 
           uploadPromise && uploadPromise.then(async(inputFile) => {
@@ -1311,8 +1349,11 @@ export class AppMessagesManager extends AppManager {
 
             if(thumbUploadPromise) {
               try {
-                const inputFile = await thumbUploadPromise;
-                (inputMedia as InputMedia.inputMediaUploadedDocument).thumb = inputFile;
+                const thumbUploadResult = await thumbUploadPromise;
+                assumeType<InputMedia.inputMediaUploadedDocument>(inputMedia);
+
+                inputMedia.thumb = thumbUploadResult.file;
+                inputMedia.video_cover = thumbUploadResult.coverPhoto;
               } catch(err) {
                 this.log.error('sendFile thumb upload error:', err);
               }
@@ -1351,8 +1392,9 @@ export class AppMessagesManager extends AppManager {
     });
 
     if(!options.isGroupedItem) {
+      const paidStars = options.confirmedPaymentResult?.starsAmount || undefined;
+
       const invokeSend = (inputMedia: Awaited<typeof sentDeferred>) => {
-        const paidStars = options.confirmedPaymentResult?.starsAmount || undefined;
         return this.apiManager.invokeApi('messages.sendMedia', {
           background: options.background,
           peer: this.appPeersManager.getInputPeerById(peerId),
@@ -1402,7 +1444,18 @@ export class AppMessagesManager extends AppManager {
               return;
             }
 
-            toggleError(error);
+            const repayRequest = this.repayRequestHandler.tryRegisterRequest({
+              error,
+              messageCount: 1,
+              paidStars,
+              repayCallback: (override) => {
+                this.cancelPendingMessage(message.random_id);
+                this.sendFile({...options, ...override});
+              },
+              wereStarsReserved: options.confirmedPaymentResult?.canUndo
+            });
+
+            toggleError(error, repayRequest);
             throw error;
           });
         });
@@ -1446,6 +1499,37 @@ export class AppMessagesManager extends AppManager {
     ret.send = upload;
 
     return ret;
+  }
+
+  private async uploadThumbAndCover({blob, isCover, peer}: UploadThumbAndCoverArgs) {
+    const file = await this.apiFileManager.upload({file: blob});
+
+    if(!isCover) return {file};
+
+    try {
+      const coverPhoto = await this.uploadVideoCover({file, peer});
+      return {file, coverPhoto};
+    } catch(err) {
+      this.log.error('uploadVideoCover error:', err);
+    }
+
+    return {file};
+  }
+
+  private async uploadVideoCover({file, peer}: UploadVideoCoverArgs) {
+    const media: InputMedia.inputMediaUploadedPhoto = {
+      _: 'inputMediaUploadedPhoto',
+      file,
+      pFlags: {}
+    };
+
+    const messageMedia = await this.apiManager.invokeApi('messages.uploadMedia', {peer, media});
+
+    if(messageMedia._ !== 'messageMediaPhoto') throw new Error('Uploaded video cover is not a photo');
+
+    const photo = this.appPhotosManager.savePhoto(messageMedia.photo);
+
+    return getPhotoInput(photo);
   }
 
   public async sendGrouped(options: MessageSendingParams & {
@@ -1543,12 +1627,12 @@ export class AppMessagesManager extends AppManager {
       return;
     }
 
-    const toggleError = (message: Message.message, error?: ApiError) => {
+    const toggleError = (message: Message.message, error?: ApiError, repayRequest?: RepayRequest) => {
       if(message.error === error) {
         return;
       }
 
-      this.onMessagesSendError([message], error);
+      this.onMessagesSendError([message], error, repayRequest);
       this.rootScope.dispatchEvent('messages_pending');
     };
 
@@ -1588,7 +1672,18 @@ export class AppMessagesManager extends AppManager {
 
             deferred.resolve();
           }, (error: ApiError) => {
-            results.forEach(({message}) => toggleError(message, error));
+            const repayRequest = this.repayRequestHandler.tryRegisterRequest({
+              error,
+              paidStars,
+              messageCount: multiMedia.length,
+              repayCallback: (override) => {
+                results.forEach(({message}) => this.cancelPendingMessage(message.random_id));
+                this.sendGrouped({...options, ...override});
+              },
+              wereStarsReserved: options.confirmedPaymentResult?.canUndo
+            });
+
+            results.forEach(({message}) => toggleError(message, error, repayRequest));
             deferred.reject(error);
           });
         }
@@ -1832,8 +1927,8 @@ export class AppMessagesManager extends AppManager {
 
     message.media = media;
 
-    const toggleError = (error?: ApiError) => {
-      this.onMessagesSendError([message], error);
+    const toggleError = (error?: ApiError, repayRequest?: RepayRequest) => {
+      this.onMessagesSendError([message], error, repayRequest);
       this.rootScope.dispatchEvent('messages_pending');
     };
 
@@ -1894,7 +1989,17 @@ export class AppMessagesManager extends AppManager {
         });
         promise.resolve();
       }, (error: ApiError) => {
-        toggleError(error);
+        const repayRequest = this.repayRequestHandler.tryRegisterRequest({
+          error,
+          paidStars,
+          messageCount: 1,
+          repayCallback: (override) => {
+            this.cancelPendingMessage(message.random_id);
+            this.sendOther({...options, ...override});
+          },
+          wereStarsReserved: options.confirmedPaymentResult?.canUndo
+        });
+        toggleError(error, repayRequest);
         promise.reject(error);
         throw error;
       }).finally(() => {
@@ -3009,7 +3114,20 @@ export class AppMessagesManager extends AppManager {
         wereStarsReserved: options.confirmedPaymentResult?.canUndo
       });
     }, (error: ApiError) => {
-      this.onMessagesSendError(newMessages, error);
+      const repayRequest = this.repayRequestHandler.tryRegisterRequest({
+        error,
+        messageCount: newMessages.length,
+        paidStars,
+        repayCallback: (override) => {
+          newMessages.forEach(message => {
+            this.cancelPendingMessage(message.random_id);
+          });
+          this.forwardMessagesInner({...options, mids, ...override});
+        },
+        wereStarsReserved: options.confirmedPaymentResult?.canUndo
+      });
+
+      this.onMessagesSendError(newMessages, error, repayRequest);
       throw error;
     }).finally(() => {
       if(this.pendingAfterMsgs[peerId] === sentRequestOptions) {
@@ -3081,7 +3199,7 @@ export class AppMessagesManager extends AppManager {
     // };
   }
 
-  private onMessagesSendError(messages: Message.message[], error?: ApiError) {
+  private onMessagesSendError(messages: Message.message[], error?: ApiError, repayRequest?: RepayRequest) {
     messages.forEach((message) => {
       if(message.error === error) {
         return;
@@ -3098,8 +3216,10 @@ export class AppMessagesManager extends AppManager {
       this.modifyMessage(message, (message) => {
         if(error) {
           message.error = error;
+          message.repayRequest = repayRequest;
         } else {
           delete message.error;
+          delete message.repayRequest;
         }
       }, undefined, true);
 
@@ -4378,7 +4498,7 @@ export class AppMessagesManager extends AppManager {
 
         if(good) {
           if(await this.canEditMessage(message, 'text')) {
-            goodMessage = message;
+            goodMessage = this.getGroupsFirstMessage(message as Message.message);
             break;
           }
 
@@ -6117,7 +6237,7 @@ export class AppMessagesManager extends AppManager {
     const peerId = this.appPeersManager.getPeerId(peer);
     const message: MyMessage = this.getMessageByPeer(peerId, mid);
 
-    if(message?._ !== 'message') {
+    if(!message) {
       this.fixDialogUnreadMentionsIfNoMessage({peerId, threadId, force: true});
       return;
     }
@@ -6233,9 +6353,9 @@ export class AppMessagesManager extends AppManager {
 
     let dispatchEditEvent = true;
     // no sense in dispatching message_edit since only reactions have changed
-    if(oldMessage?._ === 'message' && !deepEqual(oldMessage.reactions, (newMessage as Message.message).reactions)) {
-      const newReactions = (newMessage as Message.message).reactions;
-      (newMessage as Message.message).reactions = oldMessage.reactions;
+    if(oldMessage && !deepEqual(oldMessage.reactions, (newMessage as Message.message | Message.messageService).reactions)) {
+      const newReactions = (newMessage as Message.message | Message.messageService).reactions;
+      (newMessage as Message.message | Message.messageService).reactions = oldMessage.reactions;
       this.apiUpdatesManager.processLocalUpdate({
         _: 'updateMessageReactions',
         peer: this.appPeersManager.getOutputPeer(peerId),
@@ -7965,6 +8085,7 @@ export class AppMessagesManager extends AppManager {
     minDate,
     maxDate,
     historyType = this.getHistoryType(peerId, threadId),
+    chatType,
     fromPeerId,
     savedReaction,
     isPublicHashtag
@@ -8029,7 +8150,10 @@ export class AppMessagesManager extends AppManager {
         max_date: maxDate,
         offset_rate: nextRate,
         offset_peer: this.appPeersManager.getInputPeerById(offsetPeerId),
-        folder_id: folderId
+        folder_id: folderId,
+        users_only: chatType === 'users' || undefined,
+        groups_only: chatType === 'groups' || undefined,
+        broadcasts_only: chatType === 'channels' || undefined
       };
 
       method = 'messages.searchGlobal';
@@ -8755,23 +8879,23 @@ export class AppMessagesManager extends AppManager {
   }
 
   public getSponsoredMessage(peerId: PeerId): Promise<MessagesSponsoredMessages> {
-    // let promise: Promise<MessagesSponsoredMessages>;
-    // if(TEST_SPONSORED) promise = Promise.resolve({
+    // return Promise.resolve({
     //   '_': 'messages.sponsoredMessages',
-    //   'messages': [
-    //     {
-    //       '_': 'sponsoredMessage',
-    //       'pFlags': {},
-    //       'flags': 9,
-    //       'random_id': new Uint8Array([80, 5, 249, 174, 44, 73, 173, 14, 246, 81, 187, 182, 223, 5, 4, 128]),
-    //       'from_id': {
-    //         '_': 'peerUser',
-    //         'user_id': 983000232
-    //       },
-    //       'start_param': 'GreatMinds',
-    //       'message': 'This is a long sponsored message. In fact, it has the maximum length allowed on the platform – 160 characters 😬😬. It\'s promoting a bot with a start parameter.' + chatId
-    //     }
-    //   ],
+    //   'posts_between': 5,
+    //   'messages': Array.from({length: 5}, () => ({
+    //     '_': 'sponsoredMessage',
+    //     'pFlags': {},
+    //     'flags': 9,
+    //     'random_id': new Uint8Array([80, 5, 249, 174, 44, 73, 173, 14, 246, 81, 187, 182, 223, 5, 4, 128]),
+    //     'from_id': {
+    //       '_': 'peerUser',
+    //       'user_id': 983000232
+    //     },
+    //     'message': 'This is a long sponsored message. In fact, it has the maximum length allowed on the platform – 160 characters 😬😬. It\'s promoting a bot with a start parameter.' + peerId,
+    //     'url': 'https://t.me/QuizBot?start=GreatMinds',
+    //     'title': 'QuizBot',
+    //     'button_text': 'Start'
+    //   })),
     //   'chats': [],
     //   'users': [
     //     {
@@ -8856,6 +8980,14 @@ export class AppMessagesManager extends AppManager {
 
   public cancelQueuedPaidMessages(peerId: PeerId) {
     this.paidMessagesQueue.cancelFor(peerId);
+  }
+
+  public confirmRepayRequest(requestId: number, confirmedPaymentResult: ConfirmedPaymentResult) {
+    this.repayRequestHandler.confirmRepayRequest(requestId, confirmedPaymentResult);
+  }
+
+  public cancelRepayRequest(requestId: number) {
+    this.repayRequestHandler.cancelRepayRequest(requestId);
   }
 }
 

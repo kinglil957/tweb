@@ -1013,6 +1013,10 @@ export namespace Message {
     clear_history?: boolean,
     pending?: boolean,
     error?: ApiError,
+    repayRequest?: {
+      id: number,
+      messageCount: number
+    },
     send?: () => Promise<any>,
     totalEntities?: MessageEntity[],
     reply_to_mid?: number,
@@ -4702,7 +4706,7 @@ export namespace WebPage {
     document?: Document,
     cached_page?: Page,
     attributes?: Array<WebPageAttribute>,
-    type?: 'document' | 'photo' | 'telegram_channel' | 'telegram_megagroup' | 'telegram_bot' | 'telegram_botapp' | 'telegram_user' | 'telegram_chatlist' | 'telegram_story' | 'telegram_channel_boost' | 'telegram_giftcode' | 'telegram_chat' | 'telegram_videochat' | 'telegram_voicechat' | 'telegram_livestream',
+    type?: 'document' | 'photo' | 'telegram_channel' | 'telegram_megagroup' | 'telegram_bot' | 'telegram_botapp' | 'telegram_user' | 'telegram_chatlist' | 'telegram_story' | 'telegram_channel_boost' | 'telegram_giftcode' | 'telegram_chat' | 'telegram_videochat' | 'telegram_voicechat' | 'telegram_livestream' | 'telegram_nft',
     entities?: MessageEntity[]
   };
 
@@ -21026,4 +21030,3 @@ export interface MethodDeclMap {
   'payments.canPurchaseStore': {req: PaymentsCanPurchaseStore, res: boolean},
   'contacts.getSponsoredPeers': {req: ContactsGetSponsoredPeers, res: ContactsSponsoredPeers},
 }
-

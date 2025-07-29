@@ -4,7 +4,7 @@
  * https://github.com/morethanwords/tweb/blob/master/LICENSE
  */
 
-import type {Message, StickerSet, Update, NotifyPeer, PeerNotifySettings, PollResults, Poll, WebPage, GroupCall, GroupCallParticipant, ReactionCount, MessagePeerReaction, PhoneCall, Config, Reaction, AttachMenuBot, PeerSettings, StoryItem, PeerStories, SavedDialog, SavedReactionTag} from '../layer';
+import type {Message, StickerSet, Update, NotifyPeer, PeerNotifySettings, PollResults, Poll, WebPage, GroupCall, GroupCallParticipant, ReactionCount, MessagePeerReaction, PhoneCall, Config, Reaction, AttachMenuBot, PeerSettings, StoryItem, PeerStories, SavedDialog, SavedReactionTag, InputSavedStarGift} from '../layer';
 import type {Dialog, ForumTopic, MessagesStorageKey, MyMessage} from './appManagers/appMessagesManager';
 import type {MyDialogFilter} from './storages/filters';
 import type {AnyDialog, Folder} from './storages/dialogs';
@@ -27,6 +27,7 @@ import EventListenerBase, {EventListenerListeners} from '../helpers/eventListene
 import {MOUNT_CLASS_TO} from '../config/debug';
 import MTProtoMessagePort from './mtproto/mtprotoMessagePort';
 import {ActiveAccountNumber} from './accounts/types';
+import type {ApiManager} from './mtproto/apiManager';
 
 export type BroadcastEvents = {
   'chat_full_update': ChatId,
@@ -96,7 +97,7 @@ export type BroadcastEvents = {
   'message_error': {storageKey: MessagesStorageKey, peerId: PeerId, tempId: number, error: ApiError},
   'message_transcribed': {peerId: PeerId, mid: number, text: string, pending?: boolean},
   'messages_views': {peerId: PeerId, mid: number, views: number}[],
-  'messages_reactions': {message: Message.message, changedResults: ReactionCount[], removedResults: ReactionCount[]}[],
+  'messages_reactions': {message: Message.message | Message.messageService, changedResults: ReactionCount[], removedResults: ReactionCount[]}[],
   'messages_pending': void,
   'messages_read': void,
   'messages_downloaded': {peerId: PeerId, mids: number[]},
@@ -207,11 +208,23 @@ export type BroadcastEvents = {
   'account_logged_in': {accountNumber: ActiveAccountNumber, userId: UserId},
 
   'resizing_left_sidebar': void,
+  'right_sidebar_toggle': boolean,
 
   'chat_background_set': void,
 
   'toggle_using_passcode': boolean,
-  'toggle_locked': boolean
+  'toggle_locked': boolean,
+
+  'star_gift_update': {
+    input: InputSavedStarGift,
+    unsaved?: boolean,
+    converted?: boolean
+    togglePinned?: boolean
+  },
+
+  'insufficent_stars_for_message': {messageCount: number, requestId: number, invokeApiArgs: Parameters<ApiManager['invokeApi']>, reservedStars?: number};
+
+  'fulfill_repaid_message': {requestId: number},
 };
 
 export type BroadcastEventsListeners = {

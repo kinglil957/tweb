@@ -48,6 +48,7 @@ import DeferredIsUsingPasscode from '../passcode/deferredIsUsingPasscode';
  * To not be used in an ApiManager instance as there is no account number attached to it
  */
 import globalRootScope from '../rootScope';
+import RepayRequestHandler from './repayRequestHandler';
 
 /* class RotatableArray<T> {
   public array: Array<T> = [];
@@ -419,34 +420,39 @@ export class ApiManager extends ApiManagerMethods {
     }
 
     const networkers = cache[dcId];
-    // @ts-ignore
-    const maxNetworkers = connectionType === 'client' || transportType === 'https' ? 1 : (this.rootScope.premium ? PREMIUM_FILE_NETWORKERS_COUNT : REGULAR_FILE_NETWORKERS_COUNT);
-    if(networkers.length >= maxNetworkers) {
+    const maxNetworkers = connectionType === 'client' || transportType === 'https' ?
+      1 :
+      (this.rootScope.premium ? PREMIUM_FILE_NETWORKERS_COUNT : REGULAR_FILE_NETWORKERS_COUNT);
+    if(networkers.length) {
       let networker = networkers[0];
       if(maxNetworkers > 1) {
-        let foundRequests = Infinity, foundNetworker: MTPNetworker, foundIndex: number;
-        for(let i = maxNetworkers - 1; i >= 0; --i) {
-          const networker = networkers[i];
+        let onlineRequests = Infinity, onlineNetworker: MTPNetworker;
+        let minRequests = Infinity, minNetworker: MTPNetworker;
+        for(const networker of networkers) {
           const {activeRequests, isOnline} = networker;
-          if(activeRequests < foundRequests && isOnline) {
-            foundRequests = foundRequests;
-            foundNetworker = networker;
-            foundIndex = i;
+          if(activeRequests < onlineRequests && isOnline) {
+            onlineRequests = activeRequests;
+            onlineNetworker = networker;
+          }
+
+          if(activeRequests < minRequests) {
+            minRequests = activeRequests;
+            minNetworker = networker;
           }
         }
 
-        if(foundNetworker) {
-          networker = foundNetworker;
-        } else {
-          foundIndex = maxNetworkers - 1;
-        }
-
-        if(foundIndex) {
-          networkers.unshift(networker = networkers.splice(foundIndex, 1)[0]);
+        if(networkers.length < maxNetworkers && onlineRequests) { // * if all instances are busy and can create a new one
+          networker = undefined;
+        } else if(onlineNetworker) {
+          networker = onlineNetworker;
+        } else { // * if all instances are offline
+          networker = minNetworker;
         }
       }
 
-      return Promise.resolve(networker);
+      if(networker) {
+        return Promise.resolve(networker);
+      }
     }
 
     let getKey = this.generateNetworkerGetKey(dcId, transportType, connectionType);
@@ -762,6 +768,9 @@ export class ApiManager extends ApiManagerMethods {
         } else if(error.type === 'UNKNOWN' || error.type === 'MTPROTO_CLUSTER_INVALID') { // cluster invalid - request from regular user to premium endpoint
           return pause(1000).then(() => performRequest());
         } else {
+          if(RepayRequestHandler.canHandleError(error))
+            error = RepayRequestHandler.attachInvokeArgsToError(error, [method, params, options]);
+
           throw error;
         }
       });

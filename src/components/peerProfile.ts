@@ -57,6 +57,9 @@ import {render} from 'solid-js/web';
 import detectLanguageForTranslation from '../helpers/detectLanguageForTranslation';
 import PopupPremium from './popups/premium';
 import PopupTranslate from './popups/translate';
+import wrapSticker from './wrappers/sticker';
+import {rgbIntToHex} from '../helpers/color';
+import {wrapAdaptiveCustomEmoji} from './wrappers/customEmojiSimple';
 
 const setText = (text: Parameters<typeof setInnerHTML>[1], row: Row) => {
   setInnerHTML(row.title, text || undefined);
@@ -97,8 +100,16 @@ export default class PeerProfile {
   private personalChannel: Row;
   private personalChannelCounter: HTMLSpanElement;
 
+  private botPermissionsSection: SettingSection;
+  private botPermissionsEmojiStatus: Row;
+  private botPermissionsLocation: Row;
+
   private bioLanguage: Promise<TranslatableLanguageISO>;
   private bioText: string;
+
+  private botVerification: HTMLDivElement;
+
+  private pinnedGiftsContainer: HTMLDivElement;
 
   constructor(
     private managers: AppManagers,
@@ -153,6 +164,9 @@ export default class PeerProfile {
 
     this.subtitle = document.createElement('div');
     this.subtitle.classList.add('profile-subtitle');
+
+    this.pinnedGiftsContainer = document.createElement('div');
+    this.pinnedGiftsContainer.classList.add('profile-pinned-gifts');
 
     this.setCollapsedOn.classList.add('profile-container');
 
@@ -343,6 +357,9 @@ export default class PeerProfile {
 
     this.businessLocation.container.classList.add('business-location');
 
+    this.botVerification = document.createElement('div');
+    this.botVerification.classList.add('profile-bot-verification');
+
     this.section.content.append(
       this.phone.container,
       this.username.container,
@@ -381,7 +398,48 @@ export default class PeerProfile {
       this.section.content.append(this.notifications.container);
     }
 
-    this.element.append(this.personalChannelSection.container, this.section.container);
+    this.botPermissionsSection = new SettingSection({
+      name: i18n('BotAllowAccessTo'),
+      noDelimiter: true
+    });
+    this.botPermissionsEmojiStatus = new Row({
+      checkboxField: new CheckboxField({toggle: true}),
+      titleLangKey: 'BotAllowAccessToEmojiStatus',
+      icon: 'smile',
+      listenerSetter: this.listenerSetter
+    })
+    this.botPermissionsLocation = new Row({
+      checkboxField: new CheckboxField({toggle: true}),
+      titleLangKey: 'BotAllowAccessToLocation',
+      icon: 'location',
+      listenerSetter: this.listenerSetter
+    })
+
+    listenerSetter.add(this.botPermissionsEmojiStatus.checkboxField.input)('change', (e) => {
+      if(!e.isTrusted) {
+        return;
+      }
+      this.managers.appBotsManager.toggleEmojiStatusPermission(this.peerId, this.botPermissionsEmojiStatus.checkboxField.checked);
+    });
+
+    listenerSetter.add(this.botPermissionsLocation.checkboxField.input)('change', (e) => {
+      if(!e.isTrusted) {
+        return;
+      }
+      this.managers.appBotsManager.writeBotInternalStorage(this.peerId, 'locationPermission', String(this.botPermissionsLocation.checkboxField.checked));
+    });
+
+    this.botPermissionsSection.content.append(
+      this.botPermissionsEmojiStatus.container,
+      this.botPermissionsLocation.container
+    );
+
+    this.element.append(
+      this.personalChannelSection.container,
+      this.section.container,
+      this.botVerification,
+      this.botPermissionsSection.container,
+    );
 
     if(IS_PARALLAX_SUPPORTED) {
       this.element.append(generateDelimiter());
@@ -537,10 +595,13 @@ export default class PeerProfile {
       this.link,
       this.businessHours,
       this.businessLocation,
-      this.personalChannelSection
+      this.personalChannelSection,
+      this.botPermissionsSection
     ].forEach((row) => {
       row.container.style.display = 'none';
     });
+
+    this.botVerification.style.display = 'none';
 
     if(this.notifications) {
       this.notifications.container.style.display = '';
@@ -586,6 +647,7 @@ export default class PeerProfile {
           nameCallback();
 
           this.avatars.info.append(this.name, this.subtitle);
+          this.avatars.container.append(this.pinnedGiftsContainer);
 
           if(this.avatar) this.avatar.node.remove();
           this.avatar = undefined;
@@ -740,6 +802,33 @@ export default class PeerProfile {
         callbacks.forEach((callback) => callback?.());
       };
     });
+  }
+
+  private async fillPinnedGifts() {
+    const {peerId} = this.getDetailsForUse();
+    if(!peerId.isUser()) return;
+
+    const pinnedGifts = await this.managers.appGiftsManager.getPinnedGifts(peerId);
+    const middleware = this.middlewareHelper.get();
+    const stickers = await Promise.all(pinnedGifts.map(async(gift, idx) => {
+      const div = document.createElement('div');
+      div.className = 'profile-pinned-gift';
+      div.setAttribute('data-idx', idx.toString());
+      div.style.setProperty('--halo-color', rgbIntToHex(gift.collectibleAttributes.backdrop.center_color));
+      await wrapSticker({
+        doc: gift.sticker,
+        static: true,
+        middleware,
+        width: 30,
+        height: 30,
+        div
+      }).then((r) => r.render);
+      return div;
+    }));
+
+    return () => {
+      this.pinnedGiftsContainer.replaceChildren(...stickers);
+    };
   }
 
   public async fillProfileElements() {
@@ -966,8 +1055,49 @@ export default class PeerProfile {
 
     this.setMoreDetailsTimeout = window.setTimeout(() => this.setMoreDetails(true), 60e3);
 
+    if((peerFull._ === 'userFull' || peerFull._ === 'channelFull') && peerFull.stargifts_count > 0) {
+      callbacks.push(() => m(this.fillPinnedGifts()).then(clb => clb?.()));
+    }
+
+    if(peerFull._ === 'userFull' && peerFull.bot_info) {
+      const locationPermission = await m(this.managers.appBotsManager.readBotInternalStorage(peerId, 'locationPermission'));
+      if(peerFull.pFlags.bot_can_manage_emoji_status || locationPermission != null) {
+        callbacks.push(() => {
+          this.botPermissionsSection.container.style.display = '';
+
+          this.botPermissionsEmojiStatus.container.style.display = peerFull.pFlags.bot_can_manage_emoji_status ? '' : 'none';
+          this.botPermissionsEmojiStatus.checkboxField.checked = peerFull.pFlags.bot_can_manage_emoji_status;
+
+          this.botPermissionsLocation.container.style.display = locationPermission != null ? '' : 'none';
+          this.botPermissionsLocation.checkboxField.checked = locationPermission === 'true';
+        });
+      }
+    }
+
+    if((peerFull._ === 'userFull' || peerFull._ === 'channelFull') && peerFull.bot_verification) {
+      callbacks.push(() => {
+        this.botVerification.style.display = '';
+
+        const content = document.createElement('div');
+        content.classList.add('profile-bot-verification-content');
+        content.append(wrapRichText(peerFull.bot_verification.description));
+
+        this.botVerification.replaceChildren(
+          wrapAdaptiveCustomEmoji({
+            docId: peerFull.bot_verification.icon,
+            size: 32,
+            wrapOptions: {
+              middleware,
+              textColor: 'secondary-text-color'
+            }
+          }).container,
+          content
+        );
+      })
+    }
+
     return () => {
-      callbacks.forEach((callback) => callback());
+      callbacks.forEach((callback) => callback?.());
     };
   }
 

@@ -28,7 +28,7 @@ import wrapDraftText from '../lib/richTextProcessor/wrapDraftText';
 import {createCustomFiller, insertCustomFillers} from '../lib/richTextProcessor/wrapRichText';
 import type {MarkupTooltipTypes} from './chat/markupTooltip';
 
-export async function insertRichTextAsHTML(input: HTMLElement, text: string, entities: MessageEntity[], wrappingForPeerId: PeerId) {
+export async function insertRichTextAsHTML(input: HTMLElement, text: string, entities: MessageEntity[], wrappingForPeerId?: PeerId) {
   const loadPromises: Promise<any>[] = [];
   const wrappingCustomEmoji = entities?.some((entity) => entity._ === 'messageEntityCustomEmoji');
   const renderer = wrappingCustomEmoji ? createCustomEmojiRendererForInput() : undefined;
@@ -218,7 +218,7 @@ let init = () => {
 
       const richValue = getRichValueWithCaret(span, true, false);
 
-      const canWrapCustomEmojis = !!peerId;
+      const canWrapCustomEmojis = !!input.dataset.canWrapCustomEmojis || !!peerId;
       if(!canWrapCustomEmojis) {
         richValue.entities = richValue.entities.filter((entity) => entity._ !== 'messageEntityCustomEmoji');
       }
@@ -323,6 +323,7 @@ export type InputFieldOptions = {
   allowStartingSpace?: boolean,
   onRawInput?: (value: string) => void,
   canHaveFormatting?: Array<MarkupTooltipTypes>
+  canWrapCustomEmojis?: boolean;
 };
 
 function createCustomEmojiRendererForInput(textColor?: string, animationGroup?: AnimationItemGroup) {
@@ -413,7 +414,7 @@ export default class InputField {
       options.showLengthOn = Math.min(40, Math.round(options.maxLength / 3));
     }
 
-    const {placeholder, maxLength, showLengthOn, name, plainText, canBeEdited = true, autocomplete, withBorder, allowStartingSpace, canHaveFormatting} = options;
+    const {placeholder, maxLength, showLengthOn, name, plainText, canBeEdited = true, autocomplete, withBorder, allowStartingSpace, canHaveFormatting, canWrapCustomEmojis} = options;
     const label = options.label || options.labelText;
     this.allowStartingSpace = allowStartingSpace;
 
@@ -557,7 +558,7 @@ export default class InputField {
       this.container.append(border);
     }
 
-    if(label) {
+    if(label != null) {
       this.label = document.createElement('label');
       this.setLabel();
       this.container.append(this.label);
@@ -613,6 +614,8 @@ export default class InputField {
       });
     }
 
+    if(canWrapCustomEmojis) input.dataset.canWrapCustomEmojis = '1';
+
     this.input = input;
     this.setEmpty(true);
   }
@@ -636,6 +639,7 @@ export default class InputField {
     } else {
       this.label.append(i18n(this.options.label, this.options.labelOptions));
     }
+    this.label.style.visibility = this.label.textContent ? 'visible' : 'hidden';
   }
 
   get value(): string {
@@ -709,6 +713,7 @@ export default class InputField {
     if(label) {
       this.label.textContent = '';
       this.label.append(i18n(label, this.options.labelOptions));
+      this.label.style.visibility = 'visible';
     } else {
       this.setLabel();
     }

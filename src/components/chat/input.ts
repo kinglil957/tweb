@@ -133,6 +133,7 @@ import accumulate from '../../helpers/array/accumulate';
 import splitStringByLength from '../../helpers/string/splitStringByLength';
 import PaidMessagesInterceptor, {PAYMENT_REJECTED} from './paidMessagesInterceptor';
 import asyncThrottle from '../../helpers/schedulers/asyncThrottle';
+import focusInput from '../../helpers/dom/focusInput';
 
 // console.log('Recorder', Recorder);
 
@@ -348,7 +349,9 @@ export default class ChatInput {
 
   private fileSelectionPromise: CancellablePromise<File[]>;
 
-  public readonly paidMessageInterceptor: PaidMessagesInterceptor;
+  public paidMessageInterceptor: PaidMessagesInterceptor;
+
+  private starsState: ReturnType<ChatInput['constructStarsState']>;
 
   constructor(
     public chat: Chat,
@@ -361,12 +364,6 @@ export default class ChatInput {
     this.excludeParts = {};
     this.isFocused = false;
     this.emoticonsDropdown = emoticonsDropdown;
-
-    this.paidMessageInterceptor = new PaidMessagesInterceptor(chat, managers);
-
-    this.getMiddleware().onDestroy(() => {
-      this.paidMessageInterceptor.dispose();
-    });
   }
 
   public construct() {
@@ -477,6 +474,13 @@ export default class ChatInput {
     const c = this.controlContainer = document.createElement('div');
     c.classList.add('chat-input-control', 'chat-input-wrapper');
     this.inputContainer.append(c);
+
+    this.paidMessageInterceptor = new PaidMessagesInterceptor(this.chat, this.managers);
+    this.getMiddleware().onDestroy(() => {
+      this.paidMessageInterceptor.dispose();
+    });
+
+    this.starsState = this.constructStarsState();
   }
 
   public freezeFocused(focused: boolean) {
@@ -2351,11 +2355,20 @@ export default class ChatInput {
     }
   }
 
+  public passEventToInput(e: KeyboardEvent): void {
+    if(!isSendShortcutPressed(e)) return void focusInput(this.messageInput, e);
+
+    this.sendMessage();
+    document.addEventListener('keyup', () => {
+      focusInput(this.messageInput);
+    }, {once: true});
+  }
+
   private attachMessageInputListeners() {
     this.listenerSetter.add(this.messageInput)('keydown', (e) => {
       const key = e.key;
 
-      if(e.isTrusted && isSendShortcutPressed(e)) {
+      if(isSendShortcutPressed(e)) {
         cancelEvent(e);
         this.sendMessage();
       } else if(e.ctrlKey || e.metaKey) {
@@ -3470,7 +3483,7 @@ export default class ChatInput {
     this.updateMessageInputPlaceholder(params);
   }
 
-  private starsState = createRoot(dispose => {
+  private constructStarsState = () => createRoot((dispose) => {
     const middleware = this.getMiddleware();
     middleware.onDestroy(() => void dispose());
 

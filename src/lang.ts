@@ -22,6 +22,7 @@ const lang = {
   'EditProfile.Username.Taken': 'Username is already taken',
   'EditProfile.Username.Invalid': 'Username is invalid',
   'EditFolder.Toast.ChooseChat': 'Please choose at least one chat for this folder.',
+  'EditFolder.EmojiAsIconTip': 'If you put only one emoji at the beginning (or at the end), it will be displayed as the icon in the folders sidebar',
   'EditBot.Title': 'Edit Bot',
   'EditBot.Username.Caption': 'This username cannot be edited.',
   'EditBot.Buttons.Caption': 'Use [@BotFather](https://t.me/botfather) to manage this bot.',
@@ -65,6 +66,7 @@ const lang = {
   'Chat.Menu.SelectMessages': 'Select Messages',
   'Chat.Menu.ClearSelection': 'Clear Selection',
   'Chat.Menu.Hint': 'To **edit** or **reply**, close this menu.\nThen tap next to a message.',
+  'Chat.Menu.SendGift': 'Send a Gift',
   'Chat.Input.UnpinAll': 'Unpin All Messages',
   'Chat.Input.Attach.PhotoOrVideo': 'Photo or Video',
   'Chat.Input.Attach.Document': 'Document',
@@ -416,12 +418,12 @@ const lang = {
   'BoostsViaGifts.AdditionalPrizesSubtitle': 'All prizes: %s',
   'BoostsViaGifts.AdditionalPrizesSubtitleOff': 'Turn this on if you want to give the winners your own prizes in addition to Telegram Premium subscriptions.',
   'BoostsViaGifts.AdditionalPrizesDetailed': {
-    'one_value': '**%d** Telegram Premium subscription for %s.',
-    'other_value': '**%d** Telegram Premium subscriptions for %s.'
+    'one_value': '**%d** Telegram Premium subscription for %s',
+    'other_value': '**%d** Telegram Premium subscriptions for %s'
   },
   'BoostsViaGifts.AdditionalPrizesDetailedWith': {
-    'one_value': '**%d** %s with Telegram Premium subscription for %s.',
-    'other_value': '**%d** %s with Telegram Premium subscriptions for %s.'
+    'one_value': '**%d** %s with Telegram Premium subscription for %s',
+    'other_value': '**%d** %s with Telegram Premium subscriptions for %s'
   },
   'BoostsViaGifts.AdditionalStarsPrizesDetailed': {
     'one_value': '**%1$d** Star.',
@@ -499,6 +501,7 @@ const lang = {
   'OpenChat': 'Open Chat',
   'DeleteSavedDialogDescription': 'Are you sure you want to delete all saved messages from **%s**?',
   'SharedMedia.Saved': 'Saved',
+  'SharedMedia.Gifts': 'Gifts',
   'Giveaway.Prepaid': {
     'one_value': 'Prepaid Giveaway',
     'other_value': 'Prepaid Giveaways'
@@ -586,7 +589,7 @@ const lang = {
   'Rtmp.MediaViewer.Menu.EndLiveStream': 'End Live Stream',
   'Rtmp.StreamPopup.Title': 'Stream With...',
   'Rtmp.StreamPopup.TitleSettings': 'Stream Settings',
-  'Rtmp.StreamPopup.Description': 'To stream video with another app, enter these Server URL and Stream Key in your streaming app. Software encoding recommended (x264 in OBS).',
+  'Rtmp.StreamPopup.Description': 'To stream video with another app, enter this Server URL and Stream Key in your streaming app. Software encoding recommended (x264 in OBS).',
   'Rtmp.StreamPopup.ServerURL': 'Server URL',
   'Rtmp.StreamPopup.StreamKey': 'Stream Key',
   'Rtmp.StreamPopup.Hint': 'Once you start broadcasting in your streaming app, click Start Streaming below.',
@@ -827,7 +830,8 @@ const lang = {
     'other_value': 'Stars sent anonymously!'
   },
   'Stars.TopUp.Reaction': 'Buy **Stars** and send them to **%s** to support their posts.',
-  'Stars.TopUp.Label_default': 'Buy Stars to unlock content and service\nin miniapps on Telegram.',
+  'Stars.TopUp.Label_default': 'Buy Stars to unlock content and services\nin mini apps on Telegram.',
+  'Stars.TopUp.Label_stargift': 'Buy **Stars** to send gifts.',
   'Stars.TopUp.Enough': 'You have enough Stars at the moment. [Buy anyway]()',
   'Action.StarGiveawayPrize': {
     'one_value': 'You won a prize in a giveaway organized by **%s**.\n\nYour prize is **%1$d Star**.',
@@ -856,7 +860,7 @@ const lang = {
   'MediaEditor.Tool': 'Tool',
   'MediaEditor.Brushes.Pen': 'Pen',
   'MediaEditor.Brushes.Arrow': 'Arrow',
-  'MediaEditor.Brushes.Brush': 'Brush',
+  'MediaEditor.Brushes.Brush': 'Marker',
   'MediaEditor.Brushes.Neon': 'Neon',
   'MediaEditor.Brushes.Blur': 'Blur',
   'MediaEditor.Brushes.Eraser': 'Eraser',
@@ -874,12 +878,15 @@ const lang = {
   'MediaEditor.Adjustments.Sharpen': 'Sharpen',
   'MediaEditor.DiscardChanges': 'Discard Changes',
   'MediaEditor.DiscardWarning': 'Are you sure you want to discard your changes?',
+  'MediaEditor.VideoMutedTooltip': 'Sound is muted, the video will loop like a GIF if it\'s short enough',
+
   'MultiAccount.AddAccount': 'Add Account',
   'MultiAccount.More': 'More',
   'MultiAccount.ShowNotificationsFrom': 'Show Notifications From',
   'MultiAccount.ShowNotificationsFromCaption': 'Turn this off if you want to receive notifications only from the account you are currently using.',
   'MultiAccount.AllAccounts': 'All Accounts',
   'MultiAccount.AccountsLimitDescription': 'You have reached the limit of **3** connected accounts. You can add more by subscribing to **Telegram Premium**.',
+
   'CtrlFSearchTipMac': 'Tip: Use **Cmd+F** to open Search',
 
   // * android
@@ -1090,6 +1097,9 @@ const lang = {
   'WhoCanAddMe': 'Who can add me to group chats?',
   'ArchivedChats': 'Archived Chats',
   'Cancel': 'Cancel',
+  'Confirm': 'Confirm',
+  'Decline': 'Decline',
+  'Allow': 'Allow',
   'HistoryCleared': 'History was cleared',
   'Archive': 'Archive',
   'Unarchive': 'Unarchive',
@@ -1417,7 +1427,7 @@ const lang = {
   'RestrictSavingContentInfoChannel': 'Subscribers won\'t be able to copy, save or forward content from this channel.',
   'ClearOtherSessionsHelp': 'Logs out all devices except for this one.',
   'SessionsListInfo': 'The official Telegram app is available for Android, iPhone, iPad, Windows, macOS and Linux.',
-  'SponsoredMessage': 'sponsored',
+  'SponsoredMessage': 'ad',
   'OpenChannelPost': 'VIEW POST',
   'FilterNameHint': 'Folder name',
   'BotStart': 'START',
@@ -1696,14 +1706,19 @@ const lang = {
   'DynamicPackOrder': 'Dynamic Pack Order',
   'DynamicPackOrderInfo': 'Automatically place recently used sticker packs at the front of the panel.',
   'GiftPremium': 'Gift Premium',
+  'PayWithStars': 'Pay with %s %s',
   'GiftTelegramPremiumTitle': 'Gift Telegram Premium',
   'GiftTelegramPremiumDescription': 'Give **%1$s** access to exclusive features with **Telegram Premium**.',
   'PricePerMonth': '%1$s / month',
   'GiftSubscriptionFor': 'Gift Subscription for %1$s',
   'ActionGiftInbound': 'un1 sent you a gift for **un2**',
   'ActionGiftOutbound': 'You have sent a gift for **un2**',
-  'ActionGiftPremiumTitle': 'Telegram Premium',
-  'ActionGiftPremiumSubtitle': 'for %1$s',
+  'ActionGiftUpgradedInbound': '%s turned the gift from you into a unique collectible',
+  'ActionGiftUpgradedOutbound': 'You turned the gift from %s into a unique collectible',
+  'ActionGiftTransferredInbound': '%s transferred a gift to you',
+  'ActionGiftTransferredOutbound': 'You transferred a gift to %s',
+  'ActionGiftPremiumTitle2': '%s Premium',
+  'ActionGiftPremiumSubtitle2': 'Subscription for exclusive Telegram features.',
   'ChatAdmin': 'admin',
   'BotRequestAttachPermission': '**%1$s** requests to be added as an option to your attachment menu so you can access it from any chat.',
   'BotCantAddToAttachMenu': 'This bot can\'t be added to the attachment menu.',
@@ -2145,6 +2160,7 @@ const lang = {
   },
   'GiftPremiumUseGiftBtn': 'Use Gift',
   'ActionGiftPremiumView': 'View',
+  'ActionGiftPremiumUnpack': 'Unpack',
   'TelegramPremiumUserGiftedPremiumDialogTitleWithPlural': '**%1$s** has gifted you a %2$s subscription to Telegram Premium.',
   'TelegramPremiumUserGiftedPremiumDialogTitleWithPluralSomeone': 'Someone has gifted you a %1$s subscription to Telegram Premium.',
   'TelegramPremiumUserGiftedPremiumDialogSubtitle': 'You now have access to additional features.',
@@ -2276,7 +2292,7 @@ const lang = {
   'PremiumPreviewLastSeen': 'Last Seen Times',
   'PremiumPreviewLastSeenDescription': 'View the last seen and read times of others even if you hide yours.',
   'PremiumPreviewMessagePrivacy': 'Message Privacy',
-  'PremiumPreviewMessagePrivacyDescription': 'Restrict people you don\'t know from sending you messages.',
+  'PremiumPreviewMessagePrivacyDescription': 'Limit messages from strangers or charge for incoming messages.',
   'PremiumPreviewTags': 'Tags for Messages',
   'PremiumPreviewTagsDescription2': 'Organize your Saved Messages with tags for quicker access.',
   'MessageContainsReactionPack': 'This reaction is an emoji from %s pack.',
@@ -2405,8 +2421,10 @@ const lang = {
     'other_value': 'What can %1$s selected users do?'
   },
   'TelegramStars': 'Telegram Stars',
-  'TelegramStarsInfo': 'Buy Stars to unlock content and service\nin miniapps on Telegram.',
+  'TelegramStarsInfo': 'Buy Stars to unlock content and services\nin mini apps on Telegram.',
   'StarsBalance': 'Balance',
+  'StarsBalanceLong': 'Your balance is %s %s',
+  'GetMoreStars': 'Get More Stars >',
   'StarsTransactionsAll': 'All Transactions',
   'StarsTransactionsIncoming': 'Incoming',
   'StarsTransactionsOutgoing': 'Outgoing',
@@ -2415,12 +2433,16 @@ const lang = {
     'one_value': 'Do you want to buy "**%2$s**" in **%3$s** for **%1$d star**?',
     'other_value': 'Do you want to buy "**%2$s**" in **%3$s** for **%1$d stars**?'
   },
+  'StarGiftConfirmPurchaseText': {
+    'one_value': 'Do you want to buy a gift for **%1$d star**?',
+    'other_value': 'Do you want to buy a gift for **%1$d stars**?'
+  },
   'StarsNeededTitle': {
     'one_value': '%d Star Needed',
     'other_value': '%d Stars Needed'
   },
-  'StarsNeededText': 'Buy **Stars** and use them on **%s** and other miniapps.',
-  'MenuTelegramStars': 'Your Stars',
+  'StarsNeededText': 'Buy **Stars** and use them on **%s** and other mini apps.',
+  'MenuTelegramStars': 'My Stars',
   'StarsCount': {
     'one_value': '%d Star',
     'other_value': '%d Stars'
@@ -2434,8 +2456,8 @@ const lang = {
   'FactCheckWhat': 'what’s this?',
   'FactCheckDialog': 'Fact Check',
   'FactCheckPlaceholder': 'Add Fact or Context',
-  'FactCheckToast': 'This clarification was provided by a fact checking agency assigned by the department of the government of your country (%s) responsible for combating misinformation.',
-  'FactCheckFooter': 'This clarification was provided by a fact checking agency assigned by the department of the government of your country (%s) responsible for combating misinformation.',
+  'FactCheckToast': 'This clarification was provided by Telegram.',
+  'FactCheckFooter': 'This clarification was provided by Telegram.',
   'FactCheckEdited': 'Fact check updated.',
   'FactCheckDeleted': 'Fact check removed.',
   'CaptionAbove': 'Move Caption Up',
@@ -2494,6 +2516,115 @@ const lang = {
   'GiftStarsTitle': 'Gift Stars',
   'GiftStarsSubtitle': 'With Stars, **%s** will be able to unlock content and services on Telegram.',
   'GiftStarsSubtitleLinkName': '**See Examples >**',
+  'StarGiftSentMessageIncoming': {
+    'one_value': '**%1$s** sent you a gift for **%2$d Star**',
+    'other_value': '**%1$s** sent you a gift for **%2$d Stars**'
+  },
+  'StarGiftSentMessageOutgoing': {
+    'one_value': '**You** sent a gift for **%d Star**',
+    'other_value': '**You** sent a gift for **%d Stars**'
+  },
+  'StarGiftFrom': 'Gift from %s',
+  'StarGiftDefaultMessage': 'You can add this gift to your profile.',
+  'StarGiftDefaultMessageOut': '%s can display this gift on their profile.',
+  'StarGiftDefaultMessageConvertable': {
+    'one_value': 'Add this gift to your profile or convert it to %d Star.',
+    'other_value': 'Add this gift to your profile or convert it to %d Stars.'
+  },
+  'StarGiftDefaultMessageConvertableOut': {
+    'one_value': '%s can add this gift on their profile or convert it to %d Star.',
+    'other_value': '%s can add this gift on their profile or convert it to %d Stars.'
+  },
+  'StarGiftDefaultMessageUpgrade': 'Upgrade this gift to a unique collectible.',
+  'StarGiftDefaultMessageUpgradeOut': '%s can turn this gift to a unique collectible.',
+  'StarGiftReceivedTitle': 'Received Gift',
+  'StarGiftTitle': 'Gift',
+  'StarGiftReceivedSubtitle': {
+    'one_value': 'You can add this gift to your profile or convert it to %d Star.',
+    'other_value': 'You can add this gift to your profile or convert it to %d Stars.'
+  },
+  'StarGiftReceivedSubtitleLink': 'More About Stars >',
+  'StarGiftDisplayOnMyPage': 'Display on my Page',
+  'StarGiftHideFromMyPage': 'Hide from my Page',
+  'StarGiftHiddenHint': 'This gift is hidden. Only you can see it.',
+  'StarGiftVisibleHint': 'The gift is visible on your profile.',
+  'StarGiftVisibleHintLink': 'View >',
+  'StarGiftFromShort': 'From',
+  'StarGiftSendInline': 'send a gift',
+  'StarGiftDate': 'Date',
+  'StarGiftValue': 'Value',
+  'StarGiftSendGift': 'Send a Gift',
+  'StarGiftAvailability': 'Availability',
+  'StarGiftAvailabilityValue2': {
+    'other_value': '%1$d of %2$d left'
+  },
+  'StarGiftAvailabilityIssued': '%1$d/%2$d issued',
+  'StarGiftConvertButton': {
+    'one_value': 'sell for %d Star',
+    'other_value': 'sell for %d Stars'
+  },
+  'StarGiftsCount': {
+    'one_value': '%d gift',
+    'other_value': '%d gifts'
+  },
+  'StarGiftLimitedBadge': 'limited',
+  'StarGiftSoldOutBadge': 'sold out',
+  'SendStarGiftSubtitle': 'Give %s gifts that can be kept on the profile or converted to Stars.',
+  'StarGiftCategoryAll': 'All Gifts',
+  'StarGiftCategoryLimited': 'Limited',
+  'StarGiftCategoryInStock': 'In Stock',
+  'StarGiftUnavailableTitle': 'Unavailable',
+  'StarGiftUnavailableSubtitle': 'This gift has sold out.',
+  'StarGiftUnavailableFirstSale': 'First sale',
+  'StarGiftUnavailableLastSale': 'Last sale',
+  'StarGiftHiddenUser': 'Hidden user',
+  'StarGiftMessagePlaceholder': 'Enter Message (Optional)',
+  'StarGiftHideMyName': 'Hide My Name',
+  'StarGiftHideMyNameHint': 'Hide my name and message from visitors to %s’s profile. %s will still see your name and message.',
+  'StarGiftSend': 'Send a Gift for %s',
+  'StarGiftLimitedLeft': '%d left',
+  'StarGiftLimitedSold2': {
+    'other_value': '%d sold'
+  },
+  'StarGiftMakeUnique': 'Make Unique for %s %s',
+  'StarGiftMakeUniqueHint': 'Enable this to let %s turn your gift into a unique collectible. %s',
+  'StarGiftMakeUniqueLink': 'Learn more >',
+  'StarGiftLimitedBadgeNum': '1 of %s',
+  'StarGiftStatus': 'Status',
+  'StarGiftStatusNonUnique': 'Non-Unique',
+  'StarGiftStatusUpgrade': 'upgrade',
+  'StarGiftUpgradeTitle': 'Upgrade Gift',
+  'StarGiftUpgradeTitleFor': 'Make Unique',
+  'StarGiftUpgradeSubtitle': 'Turn your gift into a unique collectible that you can transfer or auction.',
+  'StarGiftUpgradeSubtitleFor': 'Let %s turn your gift into a unique collectible.',
+  'StarGiftUpgradeUniqueTitle': 'Unique',
+  'StarGiftUpgradeUniqueText': 'Get a unique number, model, backdrop and symbol for your gift.',
+  'StarGiftUpgradeTransferableTitle': 'Transferable',
+  'StarGiftUpgradeTransferableText': 'Send your upgraded gift to any of your friends on Telegram.',
+  'StarGiftUpgradeTradableTitle': 'Tradable',
+  'StarGiftUpgradeTradableText': 'Sell or auction your gift on third-party NFT marketplaces.',
+  'StarGiftUpgradeKeepInfo': 'Add sender’s name and comment',
+  'StarGiftUpgradeFree': 'Upgrade for Free',
+  'StarGiftUpgrade': 'Upgrade %s',
+  'StarGiftModel': 'Model',
+  'StarGiftBackdrop': 'Backdrop',
+  'StarGiftPattern': 'Symbol',
+  'StarGiftOwner': 'Owner',
+  'StarGiftCollectibleNum': 'Collectible #%s',
+  'StarGiftTransfer': 'transfer',
+  'StarGiftTransferFull': 'Transfer',
+  'StarGiftWear': 'wear',
+  'StarGiftWearFull': 'Wear',
+  'StarGiftShare': 'share',
+  'StarGiftPin': 'Pin',
+  'StarGiftUnpin': 'Unpin',
+  'StarGiftLinkButton': 'VIEW COLLECTIBLE',
+  'StarGiftTransferTo': 'Transfer to',
+  'StarGiftOriginalDetailsBasic': 'Gifted to %s on %s.',
+  'StarGiftOriginalDetailsSender': 'Gifted by %s to %s on %s.',
+  'StarGiftOriginalDetailsComment': 'Gifted to %s on %s with the comment “%s”.',
+  'StarGiftOriginalDetailsSenderComment': 'Gifted by %s to %s on %s with the comment “%s”.',
+  'StarGiftAttributeTooltip': 'Only %s of such collectibles have this attribute.',
   'ActionGiftStarsTitle': {
     'one_value': '%d Star',
     'other_value': '%d Stars'
@@ -2704,7 +2835,7 @@ const lang = {
   'Chat.Message.ViewGroup': 'VIEW GROUP',
   'Chat.Message.SendMessage': 'SEND MESSAGE',
   'Chat.Message.Sponsored.What': 'What are sponsored messages?',
-  'Chat.Message.Sponsored.Link': 'https://promote.telegram.org',
+  'Chat.Message.Sponsored.Link': 'https://ads.telegram.org',
   'Chat.Voice.Transribe.Error': 'No speech detected',
   'Chat.VoiceChat.JoinLink.Participants_ZeroValueHolder': 'no one joined yet',
   'Checkout.2FA.Text': 'Saving payment details is only available with 2-Step Verification.',
@@ -2932,7 +3063,7 @@ const lang = {
   'PrivacyAndSecurity.Item.On': 'On',
   'PrivacyAndSecurity.Item.Off': 'Off',
   'PrivacyAndSecurity.SensitiveText': 'Disable filtering',
-  'PrivacyAndSecurity.SensitiveDesc': 'Display sensitive media in public channels on all your Telegram devices.',
+  'PrivacyAndSecurity.SensitiveDesc': 'Do not hide media that contains content suitable only for adults.',
   'PrivacySettings.VoiceCalls': 'Calls',
   'PrivacySettings.Forwards': 'Forwarded Messages',
   'PrivacySettings.Groups': 'Groups and Channels',
@@ -2986,7 +3117,7 @@ const lang = {
   'Schedule.SendDate': 'Send on %@ at %@',
   'Schedule.SendWhenOnline': 'Send When Online',
   'Story.Tooltip.MessageSent': 'Message Sent.',
-  'Sticker.Premium.Click.Info': 'This pack contains premium stickers like this one. [View Pack]()',
+  'Sticker.Premium.Click.Info': 'This set contains premium stickers like this one. [View Set]()',
   'Stickers.Recent': 'Recent',
   // "Stickers.Favorite": "Favorite",
   'StickerSet.DontExist': 'Sorry, this sticker set doesn\'t seem to exist.',
@@ -3182,7 +3313,7 @@ const lang = {
   'PaidMessages.ChargeForMessagesDescription': 'Charge a fee for messages from people outside your contacts or who you haven\'t messaged first',
   'PaidMessages.ChargeForGroupMessagesDescription': 'If you turn this on, regular members of the group will have to pay Stars to send messages.',
   'PaidMessages.SetPrice': 'Set your price per message',
-  'PaidMessages.SetPriceDescription': 'You will receive %d% of the selected fee (~%d$) for each incoming messages',
+  'PaidMessages.SetPriceDescription': 'You will receive %d% of the selected fee (~%d$) for each incoming message',
   'PaidMessages.SetPriceGroupDescription': 'Your group will receive %d% of the selected fee (~%d$) for each incoming messages',
   'PaidMessages.RemoveFee': 'Remove Fee',
   'PaidMessages.RemoveFeeDescription': 'Add users or entire groups who won\'t have to pay to send you messages',
@@ -3206,7 +3337,7 @@ const lang = {
     'one_value': 'You paid **%2$s** to send a message',
     'other_value': 'You paid **%2$s** to send %1$d messages.'
   },
-  'PaidMessages.YouReceivedStarsFrom': 'You received **%s** from %s',
+  'PaidMessages.YouReceivedStarsFrom': '%1$s paid %2$s to send a message',
   'PaidMessages.FeeForMessages': {
     'one_value': 'Fee for %d message',
     'other_value': 'Fee for %d messages'
@@ -3230,6 +3361,14 @@ const lang = {
     'one_value': '%d Star refunded',
     'other_value': '%d Stars refunded'
   },
+  'PaidMessages.UserPaysForMessagesNotice': '%s must pay %d for each message to you.',
+  'PaidMessages.RemoveFeeWarning': 'Are you sure you want to allow %s to message you for free?',
+  'PaidMessages.RemoveFeeRefund': 'Refund the %d already paid',
+  'PaidMessages.PriceChanged': 'Price changed to %s',
+  'PaidMessages.FailedToPayForMessage': {
+    'one_value': 'You failed to pay **%2$s** to send a message',
+    'other_value': 'You failed to pay **%2$s** to send %1$d messages.'
+  },
 
   'BuyStars': 'Buy Stars',
   'UnsavedChanges': 'Unsaved Changes',
@@ -3237,7 +3376,46 @@ const lang = {
   'UnsavedChangesDescription.Group': 'You have changed some settings in this group. Save changes?',
   'DontAskAgain': 'Don\'t ask again',
   'ConfirmPayment': 'Confirm Payment',
-  'Undo': 'Undo'
+  'Undo': 'Undo',
+  'Resend': 'Resend',
+  'Quality': 'Quality',
+  'AddToFolder': 'Add to Folder',
+  'AddToFolderSearch': 'Type to search quickly',
+  'AddToFolderTip': 'Hold Shift to select more folders at once',
+  'AddToFolderEmptySearchResult': 'Tip: Use **Escape** to clear the search',
+
+  'BotSetEmojiStatusTitle': 'Set Emoji Status',
+  'BotSetEmojiStatusText': 'Do you want to set this emoji status suggested by **%s**?',
+  'BotSetEmojiStatusTextFor': 'Do you want to set this emoji status suggested by **%s** for **%s**?',
+  'BotSetEmojiStatusOffline': '**%s** requests access to your **emoji status**. You can revoke this access anytime on the profile page of **%s**.',
+  'BotLocationAccessText': '**%s** requests access to your location. You can revoke this access anytime on the profile page of **%s**.',
+  'BotAllowAccessTo': 'Allow access to',
+  'BotAllowAccessToEmojiStatus': 'Emoji status',
+  'BotAllowAccessToLocation': 'Geolocation',
+  'BotDownloadPromptTitle': 'Download file',
+  'BotDownloadPromptText': '**%s** is asking to download a file with name **%s**',
+  'BotDownloadPromptManual': 'Failed to download the file directly. Click "Confirm" to open the file in a new tab.',
+  'BotDownloadAccept': 'Download',
+  'BotStorySharingNotSupported': 'Sharing to Stories is not supported in the Web app. Please use one of Telegram\'s mobile apps.',
+  'BotSharePreparedMessageTitle': 'Share Message',
+  'BotSharePreparedMessageText': '**%s** suggests you to send this message to a chat you select.',
+  'UnknownUserNotAContact': 'Not a contact',
+  'UnknownUserPhoneNumber': 'Phone number',
+  'UnknownUserRegistrationDate': 'Registration date',
+  'UnknownUserSharedGroups': 'Shared groups',
+  'UnknownUserUnofficial': 'Not an official account',
+  'UnknownUserName': 'User updated name %s ago',
+  'UnknownUserPhoto': 'User updated photo %s ago',
+
+  'VerificationCodesBotDescription': 'Third-party services, like websites and stores, can send verification codes to your phone number via Telegram instead of SMS. Such codes will appear in this chat.\n\nIf you didn\'t request any codes – don\'t worry! Most likely, someone made a mistake when entering their number.',
+
+  'AllChats': 'All Chats',
+  'UsersOnly': 'Private Chats',
+  'GroupsOnly': 'Group Chats',
+  'ChannelsOnly': 'Channels',
+  'NoResultsTitle': 'No results',
+  'NoResultsSubtitle': 'Try a different search term',
+  'SearchInAllChats': 'Search in All Chats'
 };
 
 export default lang;

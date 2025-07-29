@@ -19,7 +19,7 @@ import findUpClassName from '../../helpers/dom/findUpClassName';
 import cancelEvent from '../../helpers/dom/cancelEvent';
 import {attachClickEvent, simulateClickEvent} from '../../helpers/dom/clickEvent';
 import isSelectionEmpty from '../../helpers/dom/isSelectionEmpty';
-import {Message, Poll, Chat as MTChat, MessageMedia, AvailableReaction, MessageEntity, InputStickerSet, StickerSet, Document, Reaction, Photo, SponsoredMessage, ChannelParticipant, TextWithEntities} from '../../layer';
+import {Message, Poll, Chat as MTChat, MessageMedia, AvailableReaction, MessageEntity, InputStickerSet, StickerSet, Document, Reaction, Photo, SponsoredMessage, ChannelParticipant, TextWithEntities, SponsoredPeer} from '../../layer';
 import assumeType from '../../helpers/assumeType';
 import PopupSponsored from '../popups/sponsored';
 import ListenerSetter from '../../helpers/listenerSetter';
@@ -76,6 +76,10 @@ import wrapDraftText from '../../lib/richTextProcessor/wrapDraftText';
 import flatten from '../../helpers/array/flatten';
 import PopupStarReaction from '../popups/starReaction';
 import getUniqueCustomEmojisFromMessage from '../../lib/appManagers/utils/messages/getUniqueCustomEmojisFromMessage';
+import getPeerTitle from '../wrappers/getPeerTitle';
+import {getFullDate} from '../../helpers/date/getFullDate';
+import PaidMessagesInterceptor, {PAYMENT_REJECTED} from './paidMessagesInterceptor';
+import {MySponsoredPeer} from '../../lib/appManagers/appChatsManager';
 
 type ChatContextMenuButton = ButtonMenuItemOptions & {
   verify: () => boolean | Promise<boolean>,
@@ -84,6 +88,84 @@ type ChatContextMenuButton = ButtonMenuItemOptions & {
   isSponsored?: true,
   localName?: 'views' | 'emojis' | 'sponsorInfo' | 'sponsorAdditionalInfo'
 };
+
+export function getSponsoredMessageButtons(options: {
+  message?: SponsoredMessage | MySponsoredPeer,
+  handleReportAd: () => void,
+  handleCopy?: () => void,
+  extraVerify?: () => boolean,
+}): ChatContextMenuButton[] {
+  const {
+    message,
+    extraVerify = () => true,
+    handleReportAd,
+    handleCopy
+  } = options;
+  if(!message) return []
+
+  const canReport = message._ === 'sponsoredPeer' ? true : message.pFlags.can_report;
+
+  return [
+    {
+      icon: 'info',
+      text: 'Chat.Message.Sponsored.What',
+      onClick: () => {
+        PopupElement.createPopup(PopupSponsored);
+      },
+      verify: () => extraVerify() && !canReport,
+      isSponsored: true
+    }, {
+      icon: 'info',
+      text: 'AboutRevenueSharingAds',
+      onClick: () => {
+        PopupElement.createPopup(PopupAboutAd);
+      },
+      verify: () => extraVerify() && !!canReport,
+      isSponsored: true
+    }, {
+      icon: 'hand',
+      text: 'HideAd',
+      onClick: () => {
+        PopupPremium.show({feature: 'no_ads'});
+      },
+      verify: () => extraVerify() && !canReport,
+      isSponsored: true
+    }, {
+      icon: 'hand',
+      text: 'ReportAd',
+      onClick: handleReportAd,
+      verify: () => extraVerify() && !!canReport,
+      isSponsored: true
+    }, {
+      icon: 'crossround',
+      text: 'RemoveAds',
+      onClick: () => {
+        PopupPremium.show({feature: 'no_ads'});
+      },
+      verify: () => extraVerify() && !!canReport,
+      isSponsored: true
+    }, {
+      icon: 'copy',
+      text: 'Copy',
+      onClick: handleCopy,
+      verify: () => handleCopy != null && extraVerify(),
+      isSponsored: true
+    }, {
+      regularText: message.sponsor_info ? wrapEmojiText(message.sponsor_info) : undefined,
+      separator: true,
+      secondary: true,
+      onClick: () => copyTextToClipboard(message.sponsor_info),
+      verify: () => extraVerify() && !!message.sponsor_info,
+      isSponsored: true
+    }, {
+      regularText: message.additional_info ? wrapEmojiText(message.additional_info) : undefined,
+      separator: true,
+      secondary: true,
+      onClick: () => copyTextToClipboard(message.additional_info),
+      verify: () => extraVerify() && !!message.additional_info,
+      isSponsored: true
+    }]
+}
 
 export default class ChatContextMenu {
   private buttons: ChatContextMenuButton[];
@@ -800,6 +882,11 @@ export default class ChatContextMenu {
       notDirect: () => true,
       localName: 'views'
     }, {
+      icon: 'rotate_right',
+      text: 'Resend',
+      onClick: () => this.handleRepay(),
+      verify: () => 'repayRequest' in this.message && !!this.message.repayRequest
+    }, {
       icon: 'delete',
       className: 'danger',
       text: 'Delete',
@@ -813,56 +900,19 @@ export default class ChatContextMenu {
       verify: () => this.isSelected && !this.chat.selection.selectionDeleteBtn.hasAttribute('disabled'),
       notDirect: () => true,
       withSelection: true
-    }, {
-      icon: 'info',
-      text: 'Chat.Message.Sponsored.What',
-      onClick: () => {
-        PopupElement.createPopup(PopupSponsored);
-      },
-      verify: () => this.isSponsored && !this.sponsoredMessage.pFlags.can_report,
-      isSponsored: true
-    }, {
-      icon: 'info',
-      text: 'AboutRevenueSharingAds',
-      onClick: () => {
-        PopupElement.createPopup(PopupAboutAd);
-      },
-      verify: () => this.isSponsored && !!this.sponsoredMessage.pFlags.can_report,
-      isSponsored: true
-    }, {
-      icon: 'hand',
-      text: 'HideAd',
-      onClick: () => {
-        PopupPremium.show({feature: 'no_ads'});
-      },
-      verify: () => this.isSponsored && !this.sponsoredMessage.pFlags.can_report,
-      isSponsored: true
-    }, {
-      icon: 'hand',
-      text: 'ReportAd',
-      onClick: () => {
+    },
+    ...getSponsoredMessageButtons({
+      message: this.sponsoredMessage,
+      extraVerify: () => this.isSponsored,
+      handleReportAd: () => {
         const {peerId, mid} = this.message;
         PopupReportAd.createAdReport(this.sponsoredMessage, () => {
           this.chat.bubbles.deleteMessagesByIds([makeFullMid(peerId, mid)], true)
         });
       },
-      verify: () => this.isSponsored && !!this.sponsoredMessage.pFlags.can_report,
-      isSponsored: true
-    }, {
-      icon: 'crossround',
-      text: 'RemoveAds',
-      onClick: () => {
-        PopupPremium.show({feature: 'no_ads'});
-      },
-      verify: () => this.isSponsored && !!this.sponsoredMessage.pFlags.can_report,
-      isSponsored: true
-    }, {
-      icon: 'copy',
-      text: 'Copy',
-      onClick: this.onCopyClick,
-      verify: () => this.isSponsored,
-      isSponsored: true
-    }, {
+      handleCopy: this.onCopyClick
+    }),
+    {
       // icon: 'smile',
       text: 'Loading',
       onClick: () => {
@@ -873,20 +923,6 @@ export default class ChatContextMenu {
       verify: () => !!this.getUniqueCustomEmojisFromMessage().length,
       notDirect: () => true,
       localName: 'emojis'
-    }, {
-      regularText: this.sponsoredMessage?.sponsor_info ? wrapEmojiText(this.sponsoredMessage.sponsor_info) : undefined,
-      separator: true,
-      secondary: true,
-      onClick: () => copyTextToClipboard(this.sponsoredMessage.sponsor_info),
-      verify: () => !!this.sponsoredMessage.sponsor_info,
-      isSponsored: true
-    }, {
-      regularText: this.sponsoredMessage?.additional_info ? wrapEmojiText(this.sponsoredMessage.additional_info) : undefined,
-      separator: true,
-      secondary: true,
-      onClick: () => copyTextToClipboard(this.sponsoredMessage.additional_info),
-      verify: () => !!this.sponsoredMessage.additional_info,
-      isSponsored: true
     }];
   }
 
@@ -1092,16 +1128,19 @@ export default class ChatContextMenu {
     let reactionsMenu: ChatReactionsMenu;
     let reactionsMenuPosition: 'horizontal' | 'vertical';
     if(
-      this.message?._ === 'message' &&
+      this.message &&
+      (this.message._ === 'message' || (this.message._ === 'messageService' && this.message.pFlags.reactions_are_possible)) &&
       !this.chat.selection.isSelecting &&
       !this.message.pFlags.is_outgoing &&
-      !this.message.pFlags.is_scheduled &&
+      !(this.message._ === 'message' && this.message.pFlags.is_scheduled) &&
       !this.message.pFlags.local &&
       !this.reactionElement
     ) {
       const reactions = this.message.reactions;
       const tags = this.message.peerId === rootScope.myId && (!reactions || reactions.pFlags.reactions_as_tags);
-      const reactionsMessage = await this.managers.appMessagesManager.getGroupsFirstMessage(this.message);
+      const reactionsMessage = this.message._ === 'message' ?
+        await this.managers.appMessagesManager.getGroupsFirstMessage(this.message) :
+        this.message;
       reactionsMenuPosition = (IS_APPLE || IS_TOUCH_SUPPORTED) || true/*  && false */ ? 'horizontal' : 'vertical';
       reactionsMenu = this.reactionsMenu = new ChatReactionsMenu({
         managers: this.managers,
@@ -1256,18 +1295,31 @@ export default class ChatContextMenu {
       fullMids = flatten(f);
     }
 
-    let messages: (Message.message | SponsoredMessage.sponsoredMessage)[];
+    let rawMessages: (Message.message | SponsoredMessage.sponsoredMessage)[];
     if(this.isSponsored) {
-      messages = [this.sponsoredMessage];
+      rawMessages = [this.sponsoredMessage];
     } else {
-      messages = fullMids.map((fullMid) => this.chat.getMessage(fullMid) as Message.message);
+      rawMessages = fullMids.map((fullMid) => this.chat.getMessage(fullMid) as Message.message);
     }
 
-    const htmlParts = messages.map((message) => {
-      if(!message?.message) {
-        return;
-      }
+    const messages = rawMessages.filter((message) => message?.message) as Message.message[];
+    const meta = messages.length > 1 ? await Promise.all(messages.map(async(message) => {
+      const peerTitle = await getPeerTitle({
+        peerId: message.fromId,
+        plainText: true
+      });
 
+      const date = getFullDate(new Date(message.date * 1000), {
+        noSeconds: true,
+        monthAsNumber: true,
+        timeJoiner: ' ',
+        leadingZero: true
+      });
+
+      return peerTitle + ', [' + date + ']';
+    })) : [];
+
+    const htmlParts = messages.map((message) => {
       const wrapped = wrapRichText(message.message, {
         entities: (message as Message.message).totalEntities || message.entities,
         wrappingDraft: true
@@ -1276,12 +1328,18 @@ export default class ChatContextMenu {
     });
 
     const parts: string[] = messages.map((message) => {
-      return message?.message;
+      return message.message;
     });
 
+    const prepare = (smth: string[]) => {
+      return smth.map((str, idx) => {
+        return meta[idx] ? meta[idx] + '\n' + str : str;
+      }).join('\n\n');
+    };
+
     return {
-      text: parts.filter(Boolean).join('\n'),
-      html: htmlParts.filter(Boolean).join('\n')
+      text: prepare(parts),
+      html: prepare(htmlParts)
     };
   }
 
@@ -1506,6 +1564,18 @@ export default class ChatContextMenu {
     this.chat.topbar.appSidebarRight.createTab(AppStatisticsTab).open(this.messagePeerId.toChatId(), this.mid);
     this.chat.topbar.appSidebarRight.toggleSidebar(true);
   };
+
+  private async handleRepay() {
+    if(!('repayRequest' in this.message) || !this.message.repayRequest) return;
+
+    const preparedPaymentResult = await this.chat.input.paidMessageInterceptor.prepareStarsForPayment(
+      this.message.repayRequest.messageCount
+    );
+
+    if(preparedPaymentResult === PAYMENT_REJECTED) return;
+
+    this.managers.appMessagesManager.confirmRepayRequest(this.message.repayRequest.id, preparedPaymentResult);
+  }
 
   public static onDownloadClick(messages: MyMessage | MyMessage[], noForwards?: boolean): DownloadBlob | DownloadBlob[] {
     if(Array.isArray(messages)) {
